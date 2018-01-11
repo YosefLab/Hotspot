@@ -2,7 +2,20 @@ library(RANN)
 library(matrixStats)
 library(Matrix)
 
-compute_weights <- function(distances, neighborhood_factor=3){
+#' Compute weights for neighbors
+#'
+#' Given a matrix of distances, computes appropriate 'weights'
+#' which decay according to a Guassian Kernel with width equal
+#' to the distance to the N_NEIGHBORS / <neighborhood_factor> neighbor
+#'
+#' @param distances distances to neighbors.  matrix of dimension
+#' N_CELLS x N_NEIGHBORS
+#' @param neighborhood_factor What proportion of neighborhood to use to
+#' define the gaussian kernel width. Default is 3
+#'
+#' @return weights weights for each neighbor.  Same size/type as distances
+#' input
+computeWeights <- function(distances, neighborhood_factor=3){
 
     # Compute weights
     radius_ii <- ceiling(ncol(distances) / neighborhood_factor)
@@ -17,9 +30,26 @@ compute_weights <- function(distances, neighborhood_factor=3){
     return(weights)
 }
 
-neighbors_and_weights <- function(data, n_neighbors=30, neighborhood_factor=3){
+#' Find Nearest Neighbors and Asociated Weights
+#'
+#' Using the input data matrix, for each cell (row) compute the
+#' nearest n_neighbors and compute a weight for each neighbor.
+#'
+#' @importFrom RANN nn2
+#' @param data Matrix to use to derive distances. It's recommended to u
+#' se a PCA-reduced gene expression matrix here.  matrix of dimension 
+#' N_CELLS x N_COMPONENTS
+#' @param n_neighbors How many neighbors to use for each cell
+#' @param neighborhood_factor What proportion of neighborhood to use to
+#' define the gaussian kernel width. Default is 3
+#'
+#' @return out$neighbors n_nearest neighbors for each cell.  Matrix of
+#' size N_CELLS x N_Neighbors.  Entries represent index of neighbors
+#' @return out$weights weights for each neighbor.  Same size/type as out$neighbors
+#' input
+neighborsAndWeights <- function(data, n_neighbors=30, neighborhood_factor=3){
 
-    nbrs <- nn2(data = pca, k = n_neighbors+1, treetype = "bd",
+    nbrs <- nn2(data = data, k = n_neighbors+1, treetype = "bd",
                searchtype = "standard")
 
     idx <- nbrs$nn.idx
@@ -37,7 +67,22 @@ neighbors_and_weights <- function(data, n_neighbors=30, neighborhood_factor=3){
 
 }
 
-hotspot <- function(expression, neighbors, weights){
+#' Run Hotspot Analysis
+#'
+#' Compute the Getis-Ord coefficient for variables in expression using
+#' the provided connectivity (neighbors) and associated edge weights
+#'
+#' @param expression Matrix on which to calculate G_i. 
+#' G_i is calculated for each variable (row) separately.  matrix of dimension 
+#' N_GENES x N_CELLS
+#'
+#' @param neighbors n_nearest neighbors for each cell.  Matrix of
+#' size N_CELLS x N_Neighbors.  Entries represent index of neighbors
+#' @param weights weights for each neighbor.  Same size/type as neighbors
+#' input
+#' @return G_i Getis-ord values for each variable in G_i.  Matrix of size
+#' N_GENES x N_CELLS
+computeHotspot <- function(expression, neighbors, weights){
 
     if (is(expression, "data.frame")){
         expression <- as.matrix(expression)

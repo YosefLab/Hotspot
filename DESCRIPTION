@@ -1,0 +1,25 @@
+Package: Hotspot
+Title: Local inference of structured variation in Single-Cell RNA-seq
+Version: 0.99.6
+Authors@R: c(person("David", "Detomaso", email = "david.detomaso@berkeley.edu", role = c("aut", "cre")),
+			 person("Nir", "Yosef", email = "niryosef@berkeley.edu", role = c("ctb", "cph")))
+Author: David DeTomaso [aut, cre], Nir Yosef [ctb]
+Maintainer: David DeTomaso <david.detomaso@berkeley.edu>
+Description: TBD
+Depends: R (>= 3.4)
+Imports: 
+	Matrix,
+	matrixStats,
+    methods,
+    RANN
+License: Artistic-2.0
+Encoding: UTF-8
+LazyData: true
+BugReports: https://github.com/YosefLab/Hotspot/issues
+RoxygenNote: 6.0.1
+Suggests: 
+	BiocStyle,
+	knitr,
+	rmarkdown,
+    testthat
+VignetteBuilder: knitr
