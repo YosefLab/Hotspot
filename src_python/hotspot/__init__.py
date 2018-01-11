@@ -33,12 +33,12 @@ def compute_gi_single(x, neighbors, weights):
     n = weights.shape[0]
 
     denom = s * ((n * S_1i - W_i**2) / (n - 1))**(1 / 2)
+    offset = xbar * W_i
 
     neighbor_xs = x[neighbors]
+    num = (neighbor_xs * weights).sum(axis=1)
 
-    num = (neighbor_xs * weights).sum(axis=1) - xbar * W_i
-
-    G_i = num / denom
+    G_i = (num - offset) / denom
 
     return G_i
 
@@ -68,7 +68,7 @@ def neighbors_and_weights(data, n_neighbors=30, neighborhood_factor=3):
     ind = ind[:, 1:]
 
     weights = compute_weights(
-        ind, dist, neighborhood_factor=neighborhood_factor)
+        dist, neighborhood_factor=neighborhood_factor)
 
     ind = pd.DataFrame(ind, index=data.index)
     neighbors = ind
@@ -78,14 +78,13 @@ def neighbors_and_weights(data, n_neighbors=30, neighborhood_factor=3):
     return neighbors, weights
 
 
-def compute_weights(neighbors, distances, neighborhood_factor=3):
+def compute_weights(distances, neighborhood_factor=3):
     """
     Computes weights on the nearest neighbors based on a
     gaussian kernel and their distances
 
     Kernel width is set to the num_neighbors / neighborhood_factor's distance
 
-    neighbors:  cells x neighbors ndarray
     distances:  cells x neighbors ndarray
     neighborhood_factor: float
 
