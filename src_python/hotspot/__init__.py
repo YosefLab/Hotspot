@@ -94,7 +94,7 @@ def compute_weights(distances, neighborhood_factor=3):
 
     radius_ii = ceil(distances.shape[1] / neighborhood_factor)
 
-    sigma = distances[:, [radius_ii]]
+    sigma = distances[:, [radius_ii-1]]
 
     weights = np.exp(-1 * distances**2 / sigma**2)
 

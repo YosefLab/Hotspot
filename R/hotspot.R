@@ -59,7 +59,7 @@ neighborsAndWeights <- function(data, n_neighbors=30, neighborhood_factor=3){
     idx <- idx[, -1]
     dists <- dists[, -1]
 
-    weights <- compute_weights(dists, neighborhood_factor)
+    weights <- computeWeights(dists, neighborhood_factor)
 
     out <- list(neighbors=idx, weights=weights)
 
