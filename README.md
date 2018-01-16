@@ -34,9 +34,9 @@ top100Genes <- names(sort(rowMaxs, decreasing=TRUE)[1:100])
 ### Installation
 
 ```bash
-git clone git@github.com:Yoseflab/Hotspot
-cd Hotspot
-python setup.py install
+$ git clone git@github.com:Yoseflab/Hotspot
+$ cd Hotspot
+$ python setup.py install
 ```
 
 ### Usage
