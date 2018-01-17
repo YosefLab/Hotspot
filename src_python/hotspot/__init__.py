@@ -1,5 +1,6 @@
 import numpy as np
 import pandas as pd
+import scipy.sparse
 from math import ceil
 from scipy.stats import norm
 from sklearn.neighbors import NearestNeighbors
@@ -123,6 +124,10 @@ def compute_gi_dataframe(x, neighbors, weights):
 
     """
 
+    assert x.shape[1] == neighbors.shape[0]
+    assert x.shape[1] == weights.shape[0]
+    assert neighbors.shape[1] == weights.shape[1]
+
     genes = x.index
     cells = x.columns
 
@@ -130,26 +135,28 @@ def compute_gi_dataframe(x, neighbors, weights):
     weights = weights.loc[x.columns].values
     x = x.values
 
+    # Compute offset/denom
+    #   Compute W_i, S_1i, xbar, s, and n parameters
     W_i = weights.sum(axis=1, keepdims=True).T  # 1xcells
     S_1i = (weights**2).sum(axis=1, keepdims=True).T  # 1xcells
 
     xbar = x.mean(axis=1, keepdims=True)  # genesx1
     s = x.std(ddof=1, axis=1, keepdims=True)  # genesx1
 
-    n = x.shape[1]
+    n = x.shape[1]  # scalar
 
-    # same for each gene,  1xcells
+    # Compute offset/denom matrices
+    offset = xbar.dot(W_i)   # genes x cells
+
     denom = s * ((n * S_1i - W_i**2) / (n - 1))**(1 / 2)
-    denom[denom == 0] = 1.0
+    denom[denom == 0] = 1.0  # genes x cells
 
-    xbar_W_i = xbar.dot(W_i)  # genes x cells
+    # Compute unnormalized G_i
+    sparse_weights = _to_sparse(neighbors, weights)
+    G_i = sparse_weights.dot(x.T).T
 
-    G_i = np.zeros_like(x)
-    for ii in range(x.shape[0]):
-        neighbor_xs = x[ii, :][neighbors]
-        G_i[ii, :] = (neighbor_xs * weights).sum(axis=1)
-
-    G_i -= xbar_W_i
+    # Normalize G_i
+    G_i -= offset
     G_i /= denom
 
     G_i = pd.DataFrame(G_i, index=genes, columns=cells)
@@ -177,3 +184,24 @@ def gi_to_pval(G_i):
     )
 
     return G_i_pval
+
+
+def _to_sparse(neighbors, weights):
+    """
+    Utility method to load neighbors, weights into a sparse matrix
+    """
+
+    N_CELLS = neighbors.shape[0]
+    N_NEIGHBORS = neighbors.shape[1]
+
+    row_idxs = np.tile(np.arange(N_CELLS).reshape((-1, 1)),
+                       reps=(1, N_NEIGHBORS)).ravel()
+    col_idxs = neighbors.ravel()
+    values = weights.ravel()
+
+    sparse = scipy.sparse.csr_matrix(
+        (values, (row_idxs, col_idxs)),
+        shape=(N_CELLS, N_CELLS)
+    )
+
+    return sparse
