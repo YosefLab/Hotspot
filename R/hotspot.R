@@ -1,18 +1,19 @@
-library(RANN)
-library(matrixStats)
-library(Matrix)
+#library(RANN)
+#library(matrixStats)
+#library(Matrix)
 
 #' Compute weights for neighbors
 #'
 #' Given a matrix of distances, computes appropriate 'weights'
 #' which decay according to a Guassian Kernel with width equal
 #' to the distance to the N_NEIGHBORS / <neighborhood_factor> neighbor
-#'
+#' @import Matrix
+#' @import matrixStats
 #' @param distances distances to neighbors.  matrix of dimension
 #' N_CELLS x N_NEIGHBORS
 #' @param neighborhood_factor What proportion of neighborhood to use to
 #' define the gaussian kernel width. Default is 3
-#'
+#' @export
 #' @return weights weights for each neighbor.  Same size/type as distances
 #' input
 computeWeights <- function(distances, neighborhood_factor=3){
@@ -42,7 +43,7 @@ computeWeights <- function(distances, neighborhood_factor=3){
 #' @param n_neighbors How many neighbors to use for each cell
 #' @param neighborhood_factor What proportion of neighborhood to use to
 #' define the gaussian kernel width. Default is 3
-#'
+#' @export
 #' @return out$neighbors n_nearest neighbors for each cell.  Matrix of
 #' size N_CELLS x N_Neighbors.  Entries represent index of neighbors
 #' @return out$weights weights for each neighbor.  Same size/type as out$neighbors
@@ -80,6 +81,7 @@ neighborsAndWeights <- function(data, n_neighbors=30, neighborhood_factor=3){
 #' size N_CELLS x N_Neighbors.  Entries represent index of neighbors
 #' @param weights weights for each neighbor.  Same size/type as neighbors
 #' input
+#' @export
 #' @return G_i Getis-ord values for each variable in G_i.  Matrix of size
 #' N_GENES x N_CELLS
 computeHotspot <- function(expression, neighbors, weights){
