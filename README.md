@@ -7,7 +7,7 @@
 ```bash
 $ git clone git@github.com:Yoseflab/Hotspot
 $ cd Hotspot
-$ R CMD INSTALL
+$ R CMD INSTALL .
 ```
 
 ### Usage
