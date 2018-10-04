@@ -36,8 +36,8 @@ computeWeights <- function(distances, neighborhood_factor=3){
 #' nearest n_neighbors and compute a weight for each neighbor.
 #'
 #' @importFrom RANN nn2
-#' @param data Matrix to use to derive distances. It's recommended to u
-#' se a PCA-reduced gene expression matrix here.  matrix of dimension 
+#' @param data Matrix to use to derive distances. It's recommended to
+#' use a PCA-reduced gene expression matrix here.  matrix of dimension
 #' N_CELLS x N_COMPONENTS
 #' @param n_neighbors How many neighbors to use for each cell
 #' @param neighborhood_factor What proportion of neighborhood to use to
@@ -72,8 +72,8 @@ neighborsAndWeights <- function(data, n_neighbors=30, neighborhood_factor=3){
 #' Compute the Getis-Ord coefficient for variables in expression using
 #' the provided connectivity (neighbors) and associated edge weights
 #'
-#' @param expression Matrix on which to calculate G_i. 
-#' G_i is calculated for each variable (row) separately.  matrix of dimension 
+#' @param expression Matrix on which to calculate G_i.
+#' G_i is calculated for each variable (row) separately.  matrix of dimension
 #' N_GENES x N_CELLS
 #'
 #' @param neighbors n_nearest neighbors for each cell.  Matrix of
@@ -124,6 +124,43 @@ computeHotspot <- function(expression, neighbors, weights){
     denom <- s * denom
 
     G_i <- (G_i - offset) / denom
+
+    return(G_i)
+}
+
+#' Compute binary hotspot values
+#'
+#' Compute the Getis-Ord coefficient for variables in expression using
+#' the provided connectivity (neighbors)
+#'
+#' @param expression Matrix on which to calculate G_i.
+#' G_i is calculated for each variable (row) separately.  matrix of dimension
+#' N_GENES x N_CELLS
+#'
+#' @param neighbors n_nearest neighbors for each cell.  Matrix of
+#' size N_CELLS x N_Neighbors.  Entries represent index of neighbors
+#' @return G_i Getis-ord values for each variable in G_i.  Matrix of size
+#' N_GENES x N_CELLS
+computeHotspotGiBinary<- function(expression, neighbors){
+
+    if (is(expression, "data.frame")){
+        expression <- as.matrix(expression)
+    }
+
+    if (is(neighbors, "data.frame")){
+        neighbors <- as.matrix(neighbors)
+    }
+
+    N_GENES <- nrow(expression)
+
+    # Load into a sparse matrix
+    row_idxs <- as.vector(t(row(neighbors)))
+    col_idxs <- as.vector(t(neighbors))
+
+    sparse_weights <- sparseMatrix(i = row_idxs, j = col_idxs)
+
+    G_i <- tcrossprod(expression, sparse_weights)
+    G_i <- as.matrix(G_i)
 
     return(G_i)
 }
