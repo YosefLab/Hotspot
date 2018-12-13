@@ -143,7 +143,7 @@ computeHotspot <- function(expression, neighbors, weights){
 #' size N_CELLS x N_Neighbors.  Entries represent index of neighbors
 #' @return G_i Getis-ord values for each variable in G_i.  Matrix of size
 #' N_GENES x N_CELLS
-computeHotspotGiBinary<- function(expression, neighbors){
+computeHotspotGiBinary <- function(expression, neighbors){
 
     if (is(expression, "data.frame")){
         expression <- as.matrix(expression)
@@ -154,12 +154,17 @@ computeHotspotGiBinary<- function(expression, neighbors){
     }
 
     N_GENES <- nrow(expression)
+    N_CELLS <- nrow(neighbors)
 
     # Load into a sparse matrix
     row_idxs <- as.vector(t(row(neighbors)))
     col_idxs <- as.vector(t(neighbors))
 
-    sparse_weights <- sparseMatrix(i = row_idxs, j = col_idxs)
+    dims <- c(N_CELLS, N_CELLS)
+    dimnames <- list(colnames(expression), colnames(expression))
+    sparse_weights <- sparseMatrix(i = row_idxs, j = col_idxs,
+                                   dims = dims,
+                                   dimnames = dimnames)
 
     G_i <- tcrossprod(expression, sparse_weights)
     G_i <- as.matrix(G_i)
