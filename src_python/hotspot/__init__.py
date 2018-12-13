@@ -5,6 +5,7 @@ from math import ceil
 from scipy.stats import norm
 from sklearn.neighbors import NearestNeighbors
 from ._version import __version__
+from .significance import pvals_for_dataframe_binary
 
 
 def compute_gi_single(x, neighbors, weights):
@@ -158,6 +159,42 @@ def compute_gi_dataframe(x, neighbors, weights):
     # Normalize G_i
     G_i -= offset
     G_i /= denom
+
+    G_i = pd.DataFrame(G_i, index=genes, columns=cells)
+
+    return G_i
+
+
+def compute_gi_binary(x, neighbors):
+    """
+    Calculates the getis-ord of the variable x using sparse weights
+    encoded in neighbors and weights.
+
+    Paramters
+    =========
+    x:         pandas.Dataframe of genes: num_genes x num_cells
+    neighbors: pandas.Dataframe of neighbor indices num_cells x num_neighbors
+
+    Returns
+    =======
+    G_i: pandas.Dataframe of num_genes x num_cells
+         The Getis-Ord coefficient for each cell/gene
+
+    """
+
+    assert x.shape[1] == neighbors.shape[0]
+
+    genes = x.index
+    cells = x.columns
+
+    neighbors = neighbors.loc[x.columns].values
+    x = x.values
+
+    weights = np.ones_like(neighbors)
+
+    # Compute unnormalized G_i
+    sparse_weights = _to_sparse(neighbors, weights)
+    G_i = sparse_weights.dot(x.T).T
 
     G_i = pd.DataFrame(G_i, index=genes, columns=cells)
 
