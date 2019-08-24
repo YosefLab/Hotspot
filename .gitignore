@@ -1,0 +1,6 @@
+*.vscode
+*__pycache__*
+tags
+tags.lock
+tags.temp
+hotspot.egg-info/
