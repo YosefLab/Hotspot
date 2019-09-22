@@ -18,7 +18,10 @@ def fit_gene_model(gene_counts, umi_counts):
     # regroup terms to protect against overflow errors
     size = ((tj**2) / total) * ((tis**2).sum() / total) / ((N-1)*my_rowvar-tj)
 
-    if size < min_size:
+    if size < 0:    # Can't have negative dispersion
+        size = 1e9
+
+    if size < min_size and size >= 0:
         size = min_size
 
     var = mu*(1+mu/size)

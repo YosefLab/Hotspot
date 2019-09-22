@@ -2,8 +2,8 @@ import numpy as np
 import pandas as pd
 
 from .knn import neighbors_and_weights, make_weights_non_redundant
-from .local_stats import (compute_hs, compute_hs_pairs,
-                          compute_hs_pairs_centered)
+from .local_stats import compute_hs
+from .local_stats_pairs import (compute_hs_pairs, compute_hs_pairs_centered)
 
 
 class Hotspot:
@@ -43,7 +43,8 @@ class Hotspot:
             self, weighted_graph=False, n_neighbors=30, neighborhood_factor=3):
 
         neighbors, weights = neighbors_and_weights(
-            self.latent, n_neighbors=30, neighborhood_factor=3)
+            self.latent, n_neighbors=n_neighbors,
+            neighborhood_factor=neighborhood_factor)
 
         self.neighbors = neighbors
 

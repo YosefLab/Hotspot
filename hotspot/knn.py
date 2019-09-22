@@ -22,12 +22,9 @@ def neighbors_and_weights(data, n_neighbors=30, neighborhood_factor=3):
     """
 
     coords = data.values
-    nbrs = NearestNeighbors(n_neighbors=n_neighbors + 1,
+    nbrs = NearestNeighbors(n_neighbors=n_neighbors,
                             algorithm="ball_tree").fit(coords)
-    dist, ind = nbrs.kneighbors(coords)
-
-    dist = dist[:, 1:]  # Exclude 'self'
-    ind = ind[:, 1:]
+    dist, ind = nbrs.kneighbors()
 
     weights = compute_weights(
         dist, neighborhood_factor=neighborhood_factor)
@@ -57,6 +54,7 @@ def compute_weights(distances, neighborhood_factor=3):
     radius_ii = ceil(distances.shape[1] / neighborhood_factor)
 
     sigma = distances[:, [radius_ii-1]]
+    sigma[sigma == 0] = 1
 
     weights = np.exp(-1 * distances**2 / sigma**2)
 
