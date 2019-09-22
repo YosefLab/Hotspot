@@ -1,8 +1,9 @@
 import numpy as np
-from numba import jit
+from numba import jit, njit
 from tqdm import tqdm
 import pandas as pd
 import multiprocessing
+import itertools
 
 from . import danb_model
 from . import bernoulli_model
@@ -297,37 +298,26 @@ def _compute_hs_pairs_inner(row_i, counts, neighbors, weights, num_umi,
 
 
 def _compute_hs_pairs_inner_centered(
-        row_i, counts, neighbors, weights, Wtot2, D):
+        rowpair, counts, neighbors, weights, Wtot2, D):
     """
     This version assumes that the counts have already been modeled
     and centered
     """
+    row_i, row_j = rowpair
 
     vals_x = counts[row_i]
+    vals_y = counts[row_j]
 
-    lc_out = np.zeros(counts.shape[0])
-    lc_z_out = np.zeros(counts.shape[0])
+    EG, EG2 = 0, Wtot2
 
-    for row_j in range(counts.shape[0]):
+    lc = local_cov_pair(vals_x, vals_y,
+                        neighbors, weights)
 
-        if row_j > row_i:
-            continue
+    stdG = (EG2 - EG**2)**.5
 
-        vals_y = counts[row_j]
+    Z = (lc - EG) / stdG
 
-        EG, EG2 = 0, Wtot2
-
-        lc = local_cov_pair(vals_x, vals_y,
-                            neighbors, weights)
-
-        stdG = (EG2 - EG**2)**.5
-
-        Z = (lc - EG) / stdG
-
-        lc_out[row_j] = lc
-        lc_z_out[row_j] = Z
-
-    return (lc_out, lc_z_out)
+    return (lc, Z)
 
 
 def compute_hs_pairs(counts, neighbors, weights,
@@ -430,6 +420,8 @@ def compute_hs_pairs_centered(counts, neighbors, weights,
         g_Wtot2 = Wtot2
         g_D = D
 
+    pairs = list(itertools.combinations(range(counts.shape[0]), 2))
+
     if jobs > 1:
 
         with multiprocessing.Pool(
@@ -437,33 +429,27 @@ def compute_hs_pairs_centered(counts, neighbors, weights,
 
             results = list(
                 tqdm(
-                    pool.imap(_map_fun_parallel_pairs_centered,
-                              range(counts.shape[0])), total=counts.shape[0]
+                    pool.imap(_map_fun_parallel_pairs_centered, pairs),
+                    total=len(pairs)
                 )
             )
     else:
-        def _map_fun(row_i):
+        def _map_fun(rowpair):
             return _compute_hs_pairs_inner_centered(
-                row_i, counts, neighbors, weights, Wtot2, D)
+                rowpair, counts, neighbors, weights, Wtot2, D)
         results = list(
             tqdm(
-                map(_map_fun, range(counts.shape[0])),
-                total=counts.shape[0]
+                map(_map_fun, pairs),
+                total=len(pairs)
             )
         )
 
-    # Only have the lower triangle so we must rebuild the rest
-    lcs = [x[0] for x in results]
-    lc_zs = [x[1] for x in results]
-
-    lcs = np.vstack(lcs)
-    lc_zs = np.vstack(lc_zs)
-
-    lcs = lcs + lcs.T
-    lc_zs = lc_zs + lc_zs.T
-
-    np.fill_diagonal(lcs, lcs.diagonal() / 2)
-    np.fill_diagonal(lc_zs, lc_zs.diagonal() / 2)
+    N = counts.shape[0]
+    pairs = np.array(pairs)
+    vals_lc = np.array([x[0] for x in results])
+    vals_z = np.array([x[0] for x in results])
+    lcs = expand_pairs(pairs, vals_lc, N)
+    lc_zs = expand_pairs(pairs, vals_z, N)
 
     lcs = pd.DataFrame(lcs, index=genes, columns=genes)
     lc_zs = pd.DataFrame(lc_zs, index=genes, columns=genes)
@@ -485,7 +471,7 @@ def _map_fun_parallel_pairs(row_i):
         g_model, g_centered, g_Wtot2, g_D)
 
 
-def _map_fun_parallel_pairs_centered(row_i):
+def _map_fun_parallel_pairs_centered(rowpair):
     global g_neighbors
     global g_weights
     global g_num_umi
@@ -494,4 +480,21 @@ def _map_fun_parallel_pairs_centered(row_i):
     global g_D
     global g_counts
     return _compute_hs_pairs_inner_centered(
-        row_i, g_counts, g_neighbors, g_weights, g_Wtot2, g_D)
+        rowpair, g_counts, g_neighbors, g_weights, g_Wtot2, g_D)
+
+
+@njit
+def expand_pairs(pairs, vals, N):
+
+    out = np.zeros((N, N))
+
+    for i in range(len(pairs)):
+
+        x = pairs[i, 0]
+        y = pairs[i, 1]
+        v = vals[i]
+
+        out[x, y] = v
+        out[y, x] = v
+
+    return out
