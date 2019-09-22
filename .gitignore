@@ -4,3 +4,5 @@ tags
 tags.lock
 tags.temp
 hotspot.egg-info/
+*.pyc
+.pytest_cache/*
