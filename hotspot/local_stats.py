@@ -75,7 +75,7 @@ def compute_moments_weights_slow(mu, x2, neighbors, weights):
                         else:
                             t1 = x2[i]*mu[j]*mu[y]
                     elif i == y:
-                        if y == x:
+                        if j == x:
                             t1 = x2[i]*x2[j]
                         else:
                             t1 = x2[i]*mu[j]*mu[x]

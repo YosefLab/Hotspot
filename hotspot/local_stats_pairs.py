@@ -34,6 +34,106 @@ def local_cov_pair(x, y, neighbors, weights):
 
 
 @jit(nopython=True)
+def compute_moments_weights_pairs_slow(muA, a2, muB, b2, neighbors, weights):
+    """
+    This version exaustively iterates over all |E|^2 terms
+    to compute the expected moments exactly.  Used to test
+    the more optimized formulations that follow
+    """
+
+    N = neighbors.shape[0]
+    K = neighbors.shape[1]
+
+    # Calculate E[G]
+    EG = 0
+    for i in range(N):
+        for k in range(K):
+            j = neighbors[i, k]
+            wij = weights[i, k]
+
+            EG += wij * (muA[i] * muB[j] + muB[i] * muA[j]) / 2
+
+    # Calculate E[G^2]
+    EG2 = 0
+    for i in range(N):
+
+        EG2_i = 0
+
+        for k in range(K):
+            j = neighbors[i, k]
+            wij = weights[i, k]
+
+            for x in range(N):
+                for z in range(K):
+                    y = neighbors[x, z]
+                    wxy = weights[x, z]
+
+                    s = wij * wxy
+                    if s == 0:
+                        continue
+
+                    if i == x:
+                        if j == y:
+                            t1 = (
+                                a2[i] * b2[j]
+                                + muA[i] * muB[j] * muA[j] * muB[i]
+                                + muA[j] * muB[i] * muA[i] * muB[j]
+                                + a2[j] * b2[i]
+                            )
+                        else:
+                            t1 = (
+                                a2[i] * muB[j] * muB[y]
+                                + muA[i] * muB[j] * muA[y] * muB[i]
+                                + muA[j] * muB[i] * muA[i] * muB[y]
+                                + muA[j] * b2[i] * muA[y]
+                            )
+                    elif i == y:
+                        if j == x:
+                            t1 = (
+                                muA[i] * muB[j] * muA[j] * muB[i]
+                                + a2[i] * b2[j]
+                                + a2[j] * b2[i]
+                                + muA[j] * muB[i] * muA[i] * muB[j]
+                            )
+                        else:
+                            t1 = (
+                                muA[i] * muB[j] * muA[x] * muB[i]
+                                + a2[i] * muB[j] * muB[x]
+                                + muA[j] * b2[i] * muA[x]
+                                + muA[j] * muB[i] * muA[i] * muB[x]
+                            )
+                    else:  # i is unique since i can't equal j
+
+                        if j == x:
+                            t1 = (
+                                muA[i] * muB[j] * muA[j] * muB[y]
+                                + muA[i] * b2[j] * muA[y]
+                                + a2[j] * muB[i] * muB[y]
+                                + muA[j] * muB[i] * muA[y] * muB[j]
+                            )
+                        elif j == y:
+                            t1 = (
+                                muA[i] * b2[j] * muA[x]
+                                + muA[i] * muB[j] * muA[j] * muB[x]
+                                + muA[j] * muB[i] * muA[x] * muB[j]
+                                + a2[j] * muB[i] * muB[x]
+                            )
+                        else:  # i and j are unique, no shared nodes
+                            t1 = (
+                                muA[i] * muB[j] * muA[x] * muB[y]
+                                + muA[i] * muB[j] * muA[y] * muB[x]
+                                + muA[j] * muB[i] * muA[x] * muB[y]
+                                + muA[j] * muB[i] * muA[y] * muB[x]
+                            )
+
+                    EG2_i += s * t1 / 4
+
+        EG2 += EG2_i
+
+    return EG, EG2
+
+
+@jit(nopython=True)
 def compute_moments_weights_pairs(
         muX, x2,
         muY, y2,
