@@ -28,7 +28,7 @@ def local_cov_pair(x, y, neighbors, weights):
             yi = y[i]
             yj = y[j]
 
-            out += w_ij*(xi*yj + yi*xj)
+            out += w_ij*(xi*yj + yi*xj)/2
 
     return out
 
@@ -50,7 +50,7 @@ def compute_moments_weights_pairs(
             j = neighbors[i, k]
             wij = weights[i, k]
 
-            EG += wij*(muX[i]*muY[j] + muY[i]*muX[j])
+            EG += wij*(muX[i]*muY[j] + muY[i]*muX[j])/2
 
     # Calculate E[G^2]
     EG2 = 0
@@ -87,8 +87,8 @@ def compute_moments_weights_pairs(
     t1y = t1y**2
 
     for i in range(N):
-        EG2 += (y2[i] - muY[i]**2)*(t1x[i] - t2x[i])
-        EG2 += (x2[i] - muX[i]**2)*(t1y[i] - t2y[i])
+        EG2 += (y2[i] - muY[i]**2)*(t1x[i] - t2x[i])/4
+        EG2 += (x2[i] - muX[i]**2)*(t1y[i] - t2y[i])/4
 
     #  Get the x^2*y^2 terms
     for i in range(N):
@@ -100,7 +100,7 @@ def compute_moments_weights_pairs(
             EG2 += wij**2*(
                 x2[i]*y2[j] - (muX[i]**2)*(muY[j]**2) +
                 y2[i]*x2[j] - (muY[i]**2)*(muX[j]**2)
-            )
+            )/4
 
     return EG, EG2
 
@@ -143,7 +143,7 @@ def compute_moments_weights_pairs_fast(
             muY_i2 = muY[i]**2
             muY_j2 = muY[j]**2
 
-            EG += wij*(muX[i]*muY[j] + muY[i]*muX[j])
+            EG += wij*(muX[i]*muY[j] + muY[i]*muX[j])/2
 
             t1x[i] += wij*muX[j]
             t2x[i] += wij_2*muX_j2
@@ -160,15 +160,15 @@ def compute_moments_weights_pairs_fast(
             EG2 += wij_2*(
                 x2[i]*y2[j] - (muX_i2)*(muY_j2) +
                 y2[i]*x2[j] - (muY_i2)*(muX_j2)
-            )
+            )/4
 
     # Calculate E[G^2]
     t1x = t1x**2
     t1y = t1y**2
 
     for i in range(N):
-        EG2 += (y2[i] - muY[i]**2)*(t1x[i] - t2x[i])
-        EG2 += (x2[i] - muX[i]**2)*(t1y[i] - t2y[i])
+        EG2 += (y2[i] - muY[i]**2)*(t1x[i] - t2x[i])/4
+        EG2 += (x2[i] - muX[i]**2)*(t1y[i] - t2y[i])/4
 
     EG2 += (EG**2)
 
@@ -199,7 +199,7 @@ def compute_moments_weights_pairs_std(neighbors, weights):
         for k in range(K):
             wij = weights[i, k]
 
-            EG2 += wij**2*(2)
+            EG2 += (wij**2)/2
 
     return EG, EG2
 
@@ -278,7 +278,7 @@ def _compute_hs_pairs_inner(row_i, counts, neighbors, weights, num_umi,
             vals_y = center_values(vals_y, mu_y, var_y)
 
         if centered:
-            EG, EG2 = 0, 2*Wtot2
+            EG, EG2 = 0, Wtot2/2
         else:
             EG, EG2 = compute_moments_weights_pairs_fast(mu_x, x2_x,
                                                          mu_y, x2_y,
@@ -308,7 +308,7 @@ def _compute_hs_pairs_inner_centered(
     vals_x = counts[row_i]
     vals_y = counts[row_j]
 
-    EG, EG2 = 0, Wtot2
+    EG, EG2 = 0, Wtot2/2
 
     lc = local_cov_pair(vals_x, vals_y,
                         neighbors, weights)
