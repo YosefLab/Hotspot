@@ -7,8 +7,8 @@
 neighborsAndWeights(data, n_neighbors = 30, neighborhood_factor = 3)
 }
 \arguments{
-\item{data}{Matrix to use to derive distances. It's recommended to u
-se a PCA-reduced gene expression matrix here.  matrix of dimension 
+\item{data}{Matrix to use to derive distances. It's recommended to
+use a PCA-reduced gene expression matrix here.  matrix of dimension
 N_CELLS x N_COMPONENTS}
 
 \item{n_neighbors}{How many neighbors to use for each cell}

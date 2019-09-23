@@ -19,7 +19,7 @@ setup(
         'numpy>=1.12',
         'pandas>=0.20',
         'scipy',
-        'sklearn'],
+        'scikit-learn'],
 
     author="David DeTomaso",
     author_email="david.detomaso@berkeley.edu",

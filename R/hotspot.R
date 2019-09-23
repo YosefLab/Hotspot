@@ -153,8 +153,7 @@ computeHotspotGiBinary <- function(expression, neighbors){
         neighbors <- as.matrix(neighbors)
     }
 
-    N_GENES <- nrow(expression)
-    N_CELLS <- nrow(neighbors)
+    N_CELLS <- ncol(expression)
 
     # Load into a sparse matrix
     row_idxs <- as.vector(t(row(neighbors)))
@@ -172,6 +171,63 @@ computeHotspotGiBinary <- function(expression, neighbors){
     return(G_i)
 }
 
+
+#' Compute all gi significance values
+#'
+#' Compute the significance of all Getis-Ord coefficient for every gene
+#'
+#' @importFrom pbmcapply pbmclapply
+#' @importFrom parallel mclapply
+#'
+#' @param gi Matrix on which to calculate G_i.
+#' @param logexp Log expression matrix
+#' @param counts Gene count matrix
+#' @param neighbors n_nearest neighbors for each cell.  Matrix of
+#' size N_CELLS x N_Neighbors.  Entries represent index of neighbors
+#' @param progress Display progress bar or not
+#' @return G_i significance scores for all genes
+r_gi_significance_all <- function(gi, logexp, counts,
+    neighbors, progress = TRUE){
+
+  N_GENES <- nrow(gi);
+  N_CELLS <- ncol(gi)
+
+  if (nrow(logexp) != N_GENES || ncol(logexp) != N_CELLS){
+      stop("Dimensions of `logexp` must be same as `gi`")
+  }
+
+  if (nrow(counts) != N_GENES || ncol(counts) != N_CELLS){
+      stop("Dimensions of `counts` must be same as `gi`")
+  }
+
+  if (nrow(neighbors) != N_CELLS){
+      stop("Number of rows in `neighbors` must be equal to number of columns in `gi`")
+  }
+
+  umis <- colSums(counts)
+
+  sig_all <- function(i) {
+    gene_gi <- gi[i, ];
+    gene_logexp <- logexp[i, ];
+    gene_counts <- counts[i, ];
+    pvals_row <- gi_significance(gene_gi, gene_logexp,
+                                 gene_counts, neighbors, umis);
+
+    return(pvals_row);
+  }
+
+  if (progress) {
+    rows <- pbmclapply(0:N_GENES, sig_all, mc.cores = getOption("mc.cores", 2L),
+        mc.style = "txt", mc.substyle = 3)
+  } else {
+    rows <- mclapply(0:N_GENES, sig_all, mc.cores = getOption("mc.cores", 2L))
+  }
+
+  p_vals <- do.call(rbind, rows)
+  dimnames(p_vals) <- dimnames(gi)
+
+  return(p_vals)
+}
 
 # n_neighbors <- 10
 # neighborhood_factor <- 3

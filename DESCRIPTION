@@ -12,6 +12,8 @@ Imports:
 	matrixStats,
     methods,
     RANN,
+    pbmcapply,
+    parallel,
     Rcpp (>= 0.12.14)
 License: Artistic-2.0
 Encoding: UTF-8

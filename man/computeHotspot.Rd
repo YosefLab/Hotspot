@@ -7,8 +7,8 @@
 computeHotspot(expression, neighbors, weights)
 }
 \arguments{
-\item{expression}{Matrix on which to calculate G_i. 
-G_i is calculated for each variable (row) separately.  matrix of dimension 
+\item{expression}{Matrix on which to calculate G_i.
+G_i is calculated for each variable (row) separately.  matrix of dimension
 N_GENES x N_CELLS}
 
 \item{neighbors}{n_nearest neighbors for each cell.  Matrix of
