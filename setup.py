@@ -17,12 +17,13 @@ setup(
         'numpy>=1.16.4',
         'scipy>=1.2.1',
         'pandas>=0.24.0',
-        'matplotlib>=3.1.0',
-        'seaborn>=0.9.0',
         'tqdm>=4.32.2',
         'statsmodels>=0.9.0',
         'scikit-learn>=0.21.2',
     ],
+    extras_require=dict(
+        test=['pytest>=5.0.0'],
+    ),
 
     include_package_data=True,
 
