@@ -547,7 +547,7 @@ def compute_hs_pairs_centered(counts, neighbors, weights,
     N = counts.shape[0]
     pairs = np.array(pairs)
     vals_lc = np.array([x[0] for x in results])
-    vals_z = np.array([x[0] for x in results])
+    vals_z = np.array([x[1] for x in results])
     lcs = expand_pairs(pairs, vals_lc, N)
     lc_zs = expand_pairs(pairs, vals_z, N)
 
