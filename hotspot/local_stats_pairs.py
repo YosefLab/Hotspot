@@ -7,6 +7,7 @@ import itertools
 
 from . import danb_model
 from . import bernoulli_model
+from .local_stats import compute_local_cov_max
 from .knn import compute_node_degree
 from .utils import center_values
 
@@ -315,23 +316,32 @@ def create_centered_counts(counts, model, num_umi):
 
         vals_x = counts[i]
 
-        if model == 'bernoulli':
-            vals_x = (vals_x > 0).astype('double')
-            mu_x, var_x, x2_x = bernoulli_model.fit_gene_model(
-                vals_x, num_umi)
+        out_x = create_centered_counts_row(
+            vals_x, model, num_umi)
 
-        elif model == 'danb':
-            mu_x, var_x, x2_x = danb_model.fit_gene_model(
-                vals_x, num_umi)
-        else:
-            raise Exception("Invalid Model: {}".format(model))
-
-        var_x[var_x == 0] = 1
-        vals_x = (vals_x-mu_x)/(var_x**0.5)
-        vals_x[var_x == 0] = 0
-        out[i] = vals_x
+        out[i] = out_x
 
     return out
+
+
+def create_centered_counts_row(vals_x, model, num_umi):
+
+    if model == 'bernoulli':
+        vals_x = (vals_x > 0).astype('double')
+        mu_x, var_x, x2_x = bernoulli_model.fit_gene_model(
+            vals_x, num_umi)
+
+    elif model == 'danb':
+        mu_x, var_x, x2_x = danb_model.fit_gene_model(
+            vals_x, num_umi)
+    else:
+        raise Exception("Invalid Model: {}".format(model))
+
+    var_x[var_x == 0] = 1
+    out_x = (vals_x-mu_x)/(var_x**0.5)
+    out_x[out_x == 0] = 0
+
+    return out_x
 
 
 def _compute_hs_pairs_inner(row_i, counts, neighbors, weights, num_umi,
@@ -487,6 +497,9 @@ def compute_hs_pairs(counts, neighbors, weights,
     np.fill_diagonal(lcs, lcs.diagonal() / 2)
     np.fill_diagonal(lc_zs, lc_zs.diagonal() / 2)
 
+    lc_maxs = compute_local_cov_pairs_max(D, counts)
+    lcs = lcs / lc_maxs
+
     lcs = pd.DataFrame(lcs, index=genes, columns=genes)
     lc_zs = pd.DataFrame(lc_zs, index=genes, columns=genes)
 
@@ -551,6 +564,9 @@ def compute_hs_pairs_centered(counts, neighbors, weights,
     lcs = expand_pairs(pairs, vals_lc, N)
     lc_zs = expand_pairs(pairs, vals_z, N)
 
+    lc_maxs = compute_local_cov_pairs_max(D, counts)
+    lcs = lcs / lc_maxs
+
     lcs = pd.DataFrame(lcs, index=genes, columns=genes)
     lc_zs = pd.DataFrame(lc_zs, index=genes, columns=genes)
 
@@ -598,3 +614,20 @@ def expand_pairs(pairs, vals, N):
         out[y, x] = v
 
     return out
+
+
+def compute_local_cov_pairs_max(node_degrees, counts):
+    """
+    For a Genes x Cells count matrix, compute the maximal pair-wise correlation
+    between any two genes
+    """
+
+    N_GENES = counts.shape[0]
+
+    gene_maxs = np.zeros(N_GENES)
+    for i in range(N_GENES):
+        gene_maxs[i] = compute_local_cov_max(node_degrees, counts[i])
+
+    result = gene_maxs.reshape((-1, 1)) + gene_maxs.reshape((1, -1))
+    result = result / 2
+    return result

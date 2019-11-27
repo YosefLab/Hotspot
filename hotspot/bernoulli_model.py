@@ -38,7 +38,7 @@ def find_gene_p(num_umi, D):
     return (high*low)**0.5
 
 
-def fit_gene_model(gene_detects, umi_counts):
+def fit_gene_model_scaled(gene_detects, umi_counts):
 
     D = gene_detects.sum()
 
@@ -56,7 +56,7 @@ def fit_gene_model(gene_detects, umi_counts):
 def fit_gene_model_linear(gene_detects, umi_counts):
 
     umi_count_bins, bins = pd.qcut(
-        np.log10(umi_counts), 30, labels=False, retbins=True
+        np.log10(umi_counts), 30, labels=False, retbins=True, duplicates='drop'
     )
     bin_centers = np.array(
         [bins[i] / 2 + bins[i + 1] / 2 for i in range(len(bins) - 1)]
@@ -81,6 +81,7 @@ def fit_gene_model_linear(gene_detects, umi_counts):
 
     return mu, var, x2
 
+fit_gene_model = fit_gene_model_linear
 
 @njit
 def logit(p):

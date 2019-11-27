@@ -243,10 +243,6 @@ def _compute_hs_inner(vals, neighbors, weights, num_umi,
         vals = (vals > 0).astype('double')
         mu, var, x2 = bernoulli_model.fit_gene_model(
             vals, num_umi)
-    elif model == 'bernoulli_L':
-        vals = (vals > 0).astype('double')
-        mu, var, x2 = bernoulli_model.fit_gene_model_linear(
-            vals, num_umi)
     elif model == 'danb':
         mu, var, x2 = danb_model.fit_gene_model(
             vals, num_umi)
