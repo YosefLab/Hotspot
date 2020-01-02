@@ -223,8 +223,12 @@ def assign_modules(Z, leaf_labels, offset, MIN_THRESHOLD=10, Z_THRESHOLD=3):
     prop_label2(Z, Z.shape[0]-1, labels[-1], labels, out_clusters)
 
     # remap out_clusters
+    unique_clusters = list(np.sort(np.unique(out_clusters)))
+    if -1 not in unique_clusters:
+        unique_clusters = [-1] + unique_clusters
+
     clust_map = {
-        x: i-1 for i, x in enumerate(np.sort(np.unique(out_clusters)))
+        x: i-1 for i, x in enumerate(unique_clusters)
     }
     out_clusters = [clust_map[x] for x in out_clusters]
     out_clusters = pd.Series(out_clusters, index=leaf_labels)
@@ -279,8 +283,12 @@ def assign_modules_core(Z, leaf_labels, offset, MIN_THRESHOLD=10, Z_THRESHOLD=3)
     prop_label(Z, Z.shape[0]-1, labels[-1], labels, out_clusters)
 
     # remap out_clusters
+    unique_clusters = list(np.sort(np.unique(out_clusters)))
+    if -1 not in unique_clusters:
+        unique_clusters = [-1] + unique_clusters
+
     clust_map = {
-        x: i-1 for i, x in enumerate(np.sort(np.unique(out_clusters)))
+        x: i-1 for i, x in enumerate(unique_clusters)
     }
     out_clusters = [clust_map[x] for x in out_clusters]
     out_clusters = pd.Series(out_clusters, index=leaf_labels)
