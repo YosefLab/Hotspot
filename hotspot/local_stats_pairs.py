@@ -7,6 +7,7 @@ import itertools
 
 from . import danb_model
 from . import bernoulli_model
+from . import normal_model
 from .local_stats import compute_local_cov_max
 from .knn import compute_node_degree
 from .utils import center_values
@@ -385,6 +386,11 @@ def create_centered_counts_row(vals_x, model, num_umi):
     elif model == 'danb':
         mu_x, var_x, x2_x = danb_model.fit_gene_model(
             vals_x, num_umi)
+
+    elif model == 'normal':
+        mu_x, var_x, x2_x = normal_model.fit_gene_model(
+            vals_x, num_umi)
+
     else:
         raise Exception("Invalid Model: {}".format(model))
 
@@ -411,6 +417,11 @@ def _compute_hs_pairs_inner(row_i, counts, neighbors, weights, num_umi,
     elif model == 'danb':
         mu_x, var_x, x2_x = danb_model.fit_gene_model(
             vals_x, num_umi)
+
+    elif model == 'normal':
+        mu_x, var_x, x2_x = normal_model.fit_gene_model(
+            vals_x, num_umi)
+
     else:
         raise Exception("Invalid Model: {}".format(model))
 
@@ -432,6 +443,11 @@ def _compute_hs_pairs_inner(row_i, counts, neighbors, weights, num_umi,
         elif model == 'danb':
             mu_y, var_y, x2_y = danb_model.fit_gene_model(
                 vals_y, num_umi)
+
+        elif model == 'normal':
+            mu_y, var_y, x2_y = normal_model.fit_gene_model(
+                vals_y, num_umi)
+
         else:
             raise Exception("Invalid Model: {}".format(model))
 
