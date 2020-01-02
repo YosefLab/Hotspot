@@ -82,7 +82,7 @@ class Hotspot:
         """
 
         if centered:
-            self.modules = compute_hs_pairs_centered(
+            self.modules = compute_hs_pairs_centered_cond(
                 self.counts.loc[genes], self.neighbors, self.weights,
                 self.umi_counts, model, jobs=jobs)
 

@@ -13,6 +13,29 @@ from .utils import center_values
 
 
 @jit(nopython=True)
+def conditional_eg2(x, neighbors, weights):
+    """
+    Computes EG2 for the conditional correlation
+    """
+    out_j = np.zeros(len(x))
+
+    for i in range(len(x)):
+
+        xi = x[i]
+
+        for K in range(neighbors.shape[1]):
+
+            j = neighbors[i, K]
+            w_ij = weights[i, K]
+
+            out_j[j] += (w_ij * xi)
+
+    out_eg2 = (out_j**2).sum()
+
+    return out_eg2
+
+
+@jit(nopython=True)
 def local_cov_pair(x, y, neighbors, weights):
     """Test statistic for local pair-wise autocorrelation"""
     out = 0
@@ -32,6 +55,34 @@ def local_cov_pair(x, y, neighbors, weights):
             out += w_ij*(xi*yj + yi*xj)/2
 
     return out
+
+
+@jit(nopython=True)
+def local_cov_pair_cond(x, y, neighbors, weights):
+    """
+    Test statistic for local pair-wise autocorrelation
+    Computes the statistic assuming x values are fixed and
+    y values are allowed to vary.
+    """
+    out_xy = 0
+    out_yx = 0
+
+    for i in range(len(x)):
+        for k in range(neighbors.shape[1]):
+
+            j = neighbors[i, k]
+            w_ij = weights[i, k]
+
+            xi = x[i]
+            xj = x[j]
+
+            yi = y[i]
+            yj = y[j]
+
+            out_xy += w_ij*xi*yj
+            out_yx += w_ij*xj*yi
+
+    return out_xy, out_yx
 
 
 @jit(nopython=True)
@@ -430,6 +481,45 @@ def _compute_hs_pairs_inner_centered(
     return (lc, Z)
 
 
+@jit(nopython=True)
+def _compute_hs_pairs_inner_centered_cond_sym(
+    rowpair, counts, neighbors, weights, eg2s
+):
+    """
+    This version assumes that the counts have already been modeled
+    and centered
+    """
+    row_i, row_j = rowpair
+
+    vals_x = counts[row_i]
+    vals_y = counts[row_j]
+
+    lc_xy, lc_yx = local_cov_pair_cond(vals_x, vals_y, neighbors, weights)
+
+    # Compute xy
+    EG, EG2 = 0, eg2s[row_i]
+
+    stdG = (EG2 - EG ** 2) ** 0.5
+
+    Zxy = (lc_xy - EG) / stdG
+
+    # Compute yx
+    EG, EG2 = 0, eg2s[row_j]
+
+    stdG = (EG2 - EG ** 2) ** 0.5
+
+    Zyx = (lc_yx - EG) / stdG
+
+    if abs(Zxy) < abs(Zyx):
+        Z = Zxy
+    else:
+        Z = Zyx
+
+    lc = (lc_xy + lc_yx) / 2
+
+    return (lc, Z)
+
+
 def compute_hs_pairs(counts, neighbors, weights,
                      num_umi, model, centered=False, jobs=1):
 
@@ -573,6 +663,79 @@ def compute_hs_pairs_centered(counts, neighbors, weights,
     return lcs, lc_zs
 
 
+def compute_hs_pairs_centered_cond(counts, neighbors, weights,
+                                   num_umi, model, jobs=1):
+
+    genes = counts.index
+
+    counts = counts.values
+    neighbors = neighbors.values
+    weights = weights.values
+    num_umi = num_umi.values
+
+    D = compute_node_degree(neighbors, weights)
+
+    counts = create_centered_counts(counts, model, num_umi)
+
+    eg2s = np.array(
+        [
+            conditional_eg2(counts[i], neighbors, weights)
+            for i in range(counts.shape[0])
+        ]
+    )
+
+    def initializer():
+        global g_neighbors
+        global g_weights
+        global g_counts
+        global g_eg2s
+        g_counts = counts
+        g_neighbors = neighbors
+        g_weights = weights
+        g_eg2s = eg2s
+
+    pairs = list(itertools.combinations(range(counts.shape[0]), 2))
+
+    print(jobs)
+
+    if jobs > 1:
+
+        with multiprocessing.Pool(
+                processes=jobs, initializer=initializer) as pool:
+
+            results = list(
+                tqdm(
+                    pool.imap(_map_fun_parallel_pairs_centered_cond, pairs),
+                    total=len(pairs)
+                )
+            )
+    else:
+        def _map_fun(rowpair):
+            return _compute_hs_pairs_inner_centered_cond_sym(
+                rowpair, counts, neighbors, weights, eg2s)
+        results = list(
+            tqdm(
+                map(_map_fun, pairs),
+                total=len(pairs)
+            )
+        )
+
+    N = counts.shape[0]
+    pairs = np.array(pairs)
+    vals_lc = np.array([x[0] for x in results])
+    vals_z = np.array([x[1] for x in results])
+    lcs = expand_pairs(pairs, vals_lc, N)
+    lc_zs = expand_pairs(pairs, vals_z, N)
+
+    lc_maxs = compute_local_cov_pairs_max(D, counts)
+    lcs = lcs / lc_maxs
+
+    lcs = pd.DataFrame(lcs, index=genes, columns=genes)
+    lc_zs = pd.DataFrame(lc_zs, index=genes, columns=genes)
+
+    return lcs, lc_zs
+
+
 def _map_fun_parallel_pairs(row_i):
     global g_neighbors
     global g_weights
@@ -597,6 +760,16 @@ def _map_fun_parallel_pairs_centered(rowpair):
     global g_counts
     return _compute_hs_pairs_inner_centered(
         rowpair, g_counts, g_neighbors, g_weights, g_Wtot2, g_D)
+
+
+def _map_fun_parallel_pairs_centered_cond(rowpair):
+    global g_neighbors
+    global g_weights
+    global g_counts
+    global g_eg2s
+    return _compute_hs_pairs_inner_centered_cond_sym(
+        rowpair, g_counts, g_neighbors, g_weights, g_eg2s
+    )
 
 
 @njit
