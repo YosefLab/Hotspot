@@ -3,6 +3,7 @@ import numpy as np
 import pandas as pd
 from math import ceil
 from numba import jit
+from tqdm import tqdm
 
 
 def neighbors_and_weights(data, n_neighbors=30, neighborhood_factor=3):
@@ -100,3 +101,89 @@ def make_weights_non_redundant(neighbors, weights):
                     w_no_redundant[i, k] += w_ji
 
     return w_no_redundant
+
+# Neighbors and weights given an ete3 tree instead
+
+def _search(current_node, previous_node, distance):
+
+    if current_node.is_root():
+        nodes_to_search = current_node.children
+    else:
+        nodes_to_search = current_node.children + [current_node.up]
+    nodes_to_search = [x for x in nodes_to_search if x != previous_node]
+
+    if len(nodes_to_search) == 0:
+        return {current_node.name: distance}
+
+    result = {}
+    for new_node in nodes_to_search:
+
+        res = _search(new_node, current_node, distance+1)
+        for k, v in res.items():
+            result[k] = v
+
+    return result
+
+
+def _knn(leaf, K):
+
+    dists = _search(leaf, None, 0)
+    dists = pd.Series(dists)
+    dists = dists + np.random.rand(len(dists)) * .9  # to break ties randomly
+
+    neighbors = dists.sort_values().index[0:K].tolist()
+
+    return neighbors
+
+
+def tree_neighbors_and_weights(tree, n_neighbors, counts):
+    """
+    Computes nearest neighbors and associated weights for data
+    Uses distance along the tree object
+
+    Names of the leaves of the tree must match the columns in counts
+
+    Parameters
+    ==========
+    tree: ete3.TreeNode
+        The root of the tree
+    n_neighbors: int
+        Number of neighbors to find
+    counts: pandas.DataFrame
+        Count data for features.  Just used for the column labels
+
+    Returns
+    =======
+    neighbors:      pandas.Dataframe num_cells x n_neighbors
+    weights:  pandas.Dataframe num_cells x n_neighbors
+
+    """
+
+    K = n_neighbors
+
+    all_leaves = []
+    for x in tree:
+        if x.is_leaf():
+            all_leaves.append(x)
+
+    all_neighbors = {}
+
+    for leaf in tqdm(all_leaves):
+        neighbors = _knn(leaf, K)
+        all_neighbors[leaf.name] = neighbors
+
+    cell_ix = {c: i for i, c in enumerate(counts.columns)}
+
+    knn_ix = np.zeros((len(all_neighbors), K), dtype='int64')
+    for cell in all_neighbors:
+        row = cell_ix[cell]
+        nn_ix = [cell_ix[x] for x in all_neighbors[cell]]
+        knn_ix[row, :] = nn_ix
+
+    neighbors = pd.DataFrame(knn_ix, index=counts.columns)
+    weights = pd.DataFrame(
+        np.ones_like(neighbors, dtype='float64'),
+        index=counts.columns
+    )
+
+    return neighbors, weights
