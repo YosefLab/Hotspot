@@ -38,6 +38,40 @@ def neighbors_and_weights(data, n_neighbors=30, neighborhood_factor=3):
     return neighbors, weights
 
 
+def neighbors_and_weights_from_distances(
+    distances, n_neighbors=30, neighborhood_factor=3
+):
+    """
+    Computes nearest neighbors and associated weights using
+    provided distance matrix directly
+
+    Parameters
+    ==========
+    distances: pandas.Dataframe num_cells x num_cells
+
+    Returns
+    =======
+    neighbors:      pandas.Dataframe num_cells x n_neighbors
+    weights:  pandas.Dataframe num_cells x n_neighbors
+
+    """
+
+    nbrs = NearestNeighbors(
+        n_neighbors=n_neighbors, algorithm="brute", metric="precomputed"
+    ).fit(distances.values)
+    dist, ind = nbrs.kneighbors()
+
+    weights = compute_weights(dist, neighborhood_factor=neighborhood_factor)
+
+    ind = pd.DataFrame(ind, index=distances.index)
+    neighbors = ind
+    weights = pd.DataFrame(
+        weights, index=neighbors.index, columns=neighbors.columns
+    )
+
+    return neighbors, weights
+
+
 def compute_weights(distances, neighborhood_factor=3):
     """
     Computes weights on the nearest neighbors based on a

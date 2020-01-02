@@ -1,22 +1,31 @@
 import numpy as np
 import pandas as pd
 
-from .knn import neighbors_and_weights, make_weights_non_redundant
+from .knn import (
+    neighbors_and_weights,
+    neighbors_and_weights_from_distances,
+    make_weights_non_redundant,
+)
 from .local_stats import compute_hs
 from .local_stats_pairs import (compute_hs_pairs, compute_hs_pairs_centered)
 
 
 class Hotspot:
 
-    def __init__(self, counts, latent, umi_counts=None):
+    def __init__(self, counts, latent=None, distances=None, umi_counts=None):
         """
         Initialize a Hotspot object for analysis
 
+        Either `latent` or `distances` is required.
+
         counts : pandas.DataFrame
             Count matrix (shape is genes x cells)
-        latent : pandas.DataFrame
+        latent : pandas.DataFrame, optional
             Latent space encoding cell-cell similarities with euclidean
             distances.  Shape is (cells x dims)
+        distances : pandas.DataFrame, optional
+            Distances encoding cell-cell similarities directly
+            Shape is (cells x cells)
         umi_counts : pandas.Series, optional
             Total umi count per cell.  Used as a size factor.  Optional,
             if omitted, the sum over genes in the counts matrix is used
@@ -26,6 +35,13 @@ class Hotspot:
 
         self.counts = counts
         self.latent = latent
+        self.distances = distances
+
+        if latent is None and distances is None:
+            raise ValueError("Neither `latent` or `distance` arguments were supplied.  One of these is required")
+
+        if latent is not None and distances is not None:
+            raise ValueError("Both `latent` and `distances` provided - only one of these should be provided.")
 
         if umi_counts is None:
             umi_counts = counts.sum(axis=0)
@@ -42,9 +58,14 @@ class Hotspot:
     def create_knn_graph(
             self, weighted_graph=False, n_neighbors=30, neighborhood_factor=3):
 
-        neighbors, weights = neighbors_and_weights(
-            self.latent, n_neighbors=n_neighbors,
-            neighborhood_factor=neighborhood_factor)
+        if self.latent is not None:
+            neighbors, weights = neighbors_and_weights(
+                self.latent, n_neighbors=n_neighbors,
+                neighborhood_factor=neighborhood_factor)
+        else:
+            neighbors, weights = neighbors_and_weights_from_distances(
+                self.distances, n_neighbors=n_neighbors,
+                neighborhood_factor=neighborhood_factor)
 
         self.neighbors = neighbors
 
