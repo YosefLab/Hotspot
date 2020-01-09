@@ -32,8 +32,6 @@ class Hotspot:
             if omitted, the sum over genes in the counts matrix is used
         """
 
-        assert counts.shape[1] == latent.shape[0]
-
         self.counts = counts
         self.latent = latent
         self.distances = distances
@@ -43,6 +41,13 @@ class Hotspot:
 
         if latent is not None and distances is not None:
             raise ValueError("Both `latent` and `distances` provided - only one of these should be provided.")
+
+        if latent is not None:
+            assert counts.shape[1] == latent.shape[0]
+
+        if distances is not None:
+            assert counts.shape[1] == distances.shape[0]
+            assert counts.shape[1] == distances.shape[1]
 
         if umi_counts is None:
             umi_counts = counts.sum(axis=0)
@@ -77,6 +82,7 @@ class Hotspot:
             )
 
         weights = make_weights_non_redundant(neighbors.values, weights.values)
+
         weights = pd.DataFrame(
             weights, index=neighbors.index, columns=neighbors.columns)
 
@@ -109,6 +115,7 @@ class Hotspot:
                 self.umi_counts, model, jobs=jobs)
 
         else:
+            raise Exception("Only 'centered=True' option is valid now")
             self.modules = compute_hs_pairs(
                 self.counts.loc[genes], self.neighbors, self.weights,
                 self.umi_counts, model, centered=False, jobs=jobs)

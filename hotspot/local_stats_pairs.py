@@ -712,8 +712,6 @@ def compute_hs_pairs_centered_cond(counts, neighbors, weights,
 
     pairs = list(itertools.combinations(range(counts.shape[0]), 2))
 
-    print(jobs)
-
     if jobs > 1:
 
         with multiprocessing.Pool(
