@@ -224,12 +224,15 @@ def assign_modules(Z, leaf_labels, offset, MIN_THRESHOLD=10, Z_THRESHOLD=3):
 
     # remap out_clusters
     unique_clusters = list(np.sort(np.unique(out_clusters)))
-    if -1 not in unique_clusters:
-        unique_clusters = [-1] + unique_clusters
+
+    if -1 in unique_clusters:
+        unique_clusters.remove(-1)
 
     clust_map = {
-        x: i-1 for i, x in enumerate(unique_clusters)
+        x: i+1 for i, x in enumerate(unique_clusters)
     }
+    clust_map[-1] = -1
+
     out_clusters = [clust_map[x] for x in out_clusters]
     out_clusters = pd.Series(out_clusters, index=leaf_labels)
 
@@ -284,12 +287,15 @@ def assign_modules_core(Z, leaf_labels, offset, MIN_THRESHOLD=10, Z_THRESHOLD=3)
 
     # remap out_clusters
     unique_clusters = list(np.sort(np.unique(out_clusters)))
-    if -1 not in unique_clusters:
-        unique_clusters = [-1] + unique_clusters
+
+    if -1 in unique_clusters:
+        unique_clusters.remove(-1)
 
     clust_map = {
-        x: i-1 for i, x in enumerate(unique_clusters)
+        x: i+1 for i, x in enumerate(unique_clusters)
     }
+    clust_map[-1] = -1
+
     out_clusters = [clust_map[x] for x in out_clusters]
     out_clusters = pd.Series(out_clusters, index=leaf_labels)
 
