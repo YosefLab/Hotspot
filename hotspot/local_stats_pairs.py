@@ -18,22 +18,84 @@ def conditional_eg2(x, neighbors, weights):
     """
     Computes EG2 for the conditional correlation
     """
-    out_j = np.zeros(len(x))
+    N = neighbors.shape[0]
+    K = neighbors.shape[1]
 
-    for i in range(len(x)):
+    t1x = np.zeros(N)
 
-        xi = x[i]
+    for i in range(N):
+        for k in range(K):
+            j = neighbors[i, k]
 
-        for K in range(neighbors.shape[1]):
+            wij = weights[i, k]
+            if wij == 0:
+                continue
 
-            j = neighbors[i, K]
-            w_ij = weights[i, K]
+            t1x[i] += wij*x[j]
+            t1x[j] += wij*x[i]
 
-            out_j[j] += (w_ij * xi)
-
-    out_eg2 = (out_j**2).sum()
+    out_eg2 = (t1x**2).sum()
 
     return out_eg2
+
+
+def conditional_eg2_slow(x, neighbors, weights):
+    """
+    Computes EG2 for the conditional correlation
+    This version is slower and more explicit for debugging purposes
+    """
+    N = neighbors.shape[0]
+    K = neighbors.shape[1]
+
+    # enumerate ALL neighbors of each node and the edge weight
+
+    neighbors_all = [[] for _ in range(N)]
+    weights_all = [[] for _ in range(N)]
+
+    for i in range(N):
+        neighbors_i = neighbors_all[i]
+        weights_i = weights_all[i]
+
+        for k in range(K):
+            j = neighbors[i, k]
+            wij = weights[i, k]
+            if wij == 0:
+                continue
+
+            neighbors_j = neighbors_all[j]
+            weights_j = weights_all[j]
+
+            neighbors_i.append(j)
+            weights_i.append(wij)
+
+            neighbors_j.append(i)
+            weights_j.append(wij)
+
+    node_totals = np.zeros(N)
+    node_totals_diag = np.zeros(N)
+
+    for i in range(N):
+        neighbors_i = neighbors_all[i]
+        weights_i = weights_all[i]
+
+        for j, wij in zip(neighbors_i, weights_i):
+            node_totals[i] += x[j]*wij
+            node_totals_diag[i] += (x[j]*wij)**2
+
+    node_totals = node_totals**2
+
+    dup = 0
+
+    for i in range(N):
+        for k in range(K):
+            j = neighbors[i, k]
+            wij = weights[i, k]
+            if wij == 0:
+                continue
+
+            dup += wij**2*(x[i]**2+x[j]**2)
+
+    return node_totals.sum() - node_totals_diag.sum() + dup
 
 
 @jit(nopython=True)
@@ -56,34 +118,6 @@ def local_cov_pair(x, y, neighbors, weights):
             out += w_ij*(xi*yj + yi*xj)/2
 
     return out
-
-
-@jit(nopython=True)
-def local_cov_pair_cond(x, y, neighbors, weights):
-    """
-    Test statistic for local pair-wise autocorrelation
-    Computes the statistic assuming x values are fixed and
-    y values are allowed to vary.
-    """
-    out_xy = 0
-    out_yx = 0
-
-    for i in range(len(x)):
-        for k in range(neighbors.shape[1]):
-
-            j = neighbors[i, k]
-            w_ij = weights[i, k]
-
-            xi = x[i]
-            xj = x[j]
-
-            yi = y[i]
-            yj = y[j]
-
-            out_xy += w_ij*xi*yj
-            out_yx += w_ij*xj*yi
-
-    return out_xy, out_yx
 
 
 @jit(nopython=True)
@@ -510,28 +544,26 @@ def _compute_hs_pairs_inner_centered_cond_sym(
     vals_x = counts[row_i]
     vals_y = counts[row_j]
 
-    lc_xy, lc_yx = local_cov_pair_cond(vals_x, vals_y, neighbors, weights)
+    lc = local_cov_pair(vals_x, vals_y, neighbors, weights)*2
 
     # Compute xy
     EG, EG2 = 0, eg2s[row_i]
 
     stdG = (EG2 - EG ** 2) ** 0.5
 
-    Zxy = (lc_xy - EG) / stdG
+    Zxy = (lc - EG) / stdG
 
     # Compute yx
     EG, EG2 = 0, eg2s[row_j]
 
     stdG = (EG2 - EG ** 2) ** 0.5
 
-    Zyx = (lc_yx - EG) / stdG
+    Zyx = (lc - EG) / stdG
 
     if abs(Zxy) < abs(Zyx):
         Z = Zxy
     else:
         Z = Zyx
-
-    lc = (lc_xy + lc_yx) / 2
 
     return (lc, Z)
 
