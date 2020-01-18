@@ -9,6 +9,7 @@ import multiprocessing
 from . import danb_model
 from . import bernoulli_model
 from . import normal_model
+from . import none_model
 
 from .knn import compute_node_degree
 from .utils import center_values
@@ -250,6 +251,9 @@ def _compute_hs_inner(vals, neighbors, weights, num_umi,
             vals, num_umi)
     elif model == 'normal':
         mu, var, x2 = normal_model.fit_gene_model(
+            vals, num_umi)
+    elif model == 'none':
+        mu, var, x2 = none_model.fit_gene_model(
             vals, num_umi)
     else:
         raise Exception("Invalid Model: {}".format(model))
