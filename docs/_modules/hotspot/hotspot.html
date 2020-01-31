@@ -1,0 +1,447 @@
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="X-UA-Compatible" content="IE=Edge" />
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <title>hotspot.hotspot &#8212; Hotspot  documentation</title>
+    <link rel="stylesheet" href="../../_static/sphinxdoc.css" type="text/css" />
+    <link rel="stylesheet" href="../../_static/pygments.css" type="text/css" />
+    <script type="text/javascript" id="documentation_options" data-url_root="../../" src="../../_static/documentation_options.js"></script>
+    <script type="text/javascript" src="../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../_static/doctools.js"></script>
+    <script crossorigin="anonymous" integrity="sha256-Ae2Vz/4ePdIu6ZyI/5ZGsYnb+m0JlOmKPjt6XZ9JJkA=" type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.4/require.min.js"></script>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" /> 
+  </head><body>
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="nav-item nav-item-0"><a href="../../index.html">Hotspot  documentation</a> &#187;</li>
+          <li class="nav-item nav-item-1"><a href="../index.html" accesskey="U">Module code</a> &#187;</li> 
+      </ul>
+    </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+<div id="searchbox" style="display: none" role="search">
+  <h3>Quick search</h3>
+    <div class="searchformwrapper">
+    <form class="search" action="../../search.html" method="get">
+      <input type="text" name="q" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    </div>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <h1>Source code for hotspot.hotspot</h1><div class="highlight"><pre>
+<span></span><span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+<span class="kn">import</span> <span class="nn">pandas</span> <span class="k">as</span> <span class="nn">pd</span>
+
+<span class="kn">from</span> <span class="nn">.knn</span> <span class="k">import</span> <span class="p">(</span>
+    <span class="n">neighbors_and_weights</span><span class="p">,</span>
+    <span class="n">neighbors_and_weights_from_distances</span><span class="p">,</span>
+    <span class="n">tree_neighbors_and_weights</span><span class="p">,</span>
+    <span class="n">make_weights_non_redundant</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="kn">from</span> <span class="nn">.local_stats</span> <span class="k">import</span> <span class="n">compute_hs</span>
+<span class="kn">from</span> <span class="nn">.local_stats_pairs</span> <span class="k">import</span> <span class="p">(</span>
+    <span class="n">compute_hs_pairs</span><span class="p">,</span> <span class="n">compute_hs_pairs_centered_cond</span><span class="p">)</span>
+
+<span class="kn">from</span> <span class="nn">.</span> <span class="k">import</span> <span class="n">modules</span>
+<span class="kn">from</span> <span class="nn">.plots</span> <span class="k">import</span> <span class="n">local_correlation_plot</span>
+<span class="kn">from</span> <span class="nn">tqdm</span> <span class="k">import</span> <span class="n">tqdm</span>
+
+
+<div class="viewcode-block" id="Hotspot"><a class="viewcode-back" href="../../hotspot.html#hotspot.Hotspot">[docs]</a><span class="k">class</span> <span class="nc">Hotspot</span><span class="p">:</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span>
+            <span class="bp">self</span><span class="p">,</span> <span class="n">counts</span><span class="p">,</span> <span class="n">model</span><span class="o">=</span><span class="s1">&#39;danb&#39;</span><span class="p">,</span>
+            <span class="n">latent</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">distances</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">tree</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+            <span class="n">umi_counts</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Initialize a Hotspot object for analysis</span>
+
+<span class="sd">        Either `latent` or `tree` or `distances` is required.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        counts : pandas.DataFrame</span>
+<span class="sd">            Count matrix (shape is genes x cells)</span>
+<span class="sd">        model : string, optional</span>
+<span class="sd">            Specifies the null model to use for gene expression.</span>
+<span class="sd">            Valid choices are:</span>
+
+<span class="sd">                - &#39;danb&#39;: Depth-Adjusted Negative Binomial</span>
+<span class="sd">                - &#39;bernoulli&#39;: Models probability of detection</span>
+<span class="sd">                - &#39;normal&#39;: Depth-Adjusted Normal</span>
+<span class="sd">                - &#39;none&#39;: Assumes data has been pre-standardized</span>
+
+<span class="sd">        latent : pandas.DataFrame, optional</span>
+<span class="sd">            Latent space encoding cell-cell similarities with euclidean</span>
+<span class="sd">            distances.  Shape is (cells x dims)</span>
+<span class="sd">        distances : pandas.DataFrame, optional</span>
+<span class="sd">            Distances encoding cell-cell similarities directly</span>
+<span class="sd">            Shape is (cells x cells)</span>
+<span class="sd">        tree : ete3.coretype.tree.TreeNode</span>
+<span class="sd">            Root tree node.  Can be created using ete3.Tree</span>
+<span class="sd">        umi_counts : pandas.Series, optional</span>
+<span class="sd">            Total umi count per cell.  Used as a size factor.</span>
+<span class="sd">            If omitted, the sum over genes in the counts matrix is used</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">counts</span> <span class="o">=</span> <span class="n">counts</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">latent</span> <span class="o">=</span> <span class="n">latent</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">distances</span> <span class="o">=</span> <span class="n">distances</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">tree</span> <span class="o">=</span> <span class="n">tree</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">model</span> <span class="o">=</span> <span class="n">model</span>
+
+        <span class="k">if</span> <span class="n">latent</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">distances</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">tree</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Neither `latent` or `tree` or `distance` arguments were supplied.  One of these is required&quot;</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">latent</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">distances</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Both `latent` and `distances` provided - only one of these should be provided.&quot;</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">latent</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">tree</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Both `latent` and `tree` provided - only one of these should be provided.&quot;</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">distances</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">tree</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Both `distances` and `tree` provided - only one of these should be provided.&quot;</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">latent</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">assert</span> <span class="n">counts</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">==</span> <span class="n">latent</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+
+        <span class="k">if</span> <span class="n">distances</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">assert</span> <span class="n">counts</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">==</span> <span class="n">distances</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+            <span class="k">assert</span> <span class="n">counts</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">==</span> <span class="n">distances</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+
+        <span class="k">if</span> <span class="n">tree</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="n">all_leaves</span> <span class="o">=</span> <span class="p">[]</span>
+                <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">tree</span><span class="p">:</span>
+                    <span class="k">if</span> <span class="n">x</span><span class="o">.</span><span class="n">is_leaf</span><span class="p">():</span>
+                        <span class="n">all_leaves</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">x</span><span class="o">.</span><span class="n">name</span><span class="p">)</span>
+            <span class="k">except</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Can&#39;t parse supplied tree&quot;</span><span class="p">)</span>
+
+            <span class="k">if</span> <span class="p">(</span>
+                <span class="nb">len</span><span class="p">(</span><span class="n">all_leaves</span><span class="p">)</span> <span class="o">!=</span> <span class="n">counts</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="ow">or</span>
+                <span class="nb">len</span><span class="p">(</span><span class="nb">set</span><span class="p">(</span><span class="n">all_leaves</span><span class="p">)</span> <span class="o">&amp;</span> <span class="nb">set</span><span class="p">(</span><span class="n">counts</span><span class="o">.</span><span class="n">columns</span><span class="p">))</span> <span class="o">!=</span> <span class="nb">len</span><span class="p">(</span><span class="n">all_leaves</span><span class="p">)</span>
+               <span class="p">):</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Tree leaf labels don&#39;t match columns in supplied counts matrix&quot;</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">umi_counts</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">umi_counts</span> <span class="o">=</span> <span class="n">counts</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">assert</span> <span class="n">umi_counts</span><span class="o">.</span><span class="n">size</span> <span class="o">==</span> <span class="n">counts</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+
+        <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">umi_counts</span><span class="p">,</span> <span class="n">pd</span><span class="o">.</span><span class="n">Series</span><span class="p">):</span>
+            <span class="n">umi_counts</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">Series</span><span class="p">(</span><span class="n">umi_counts</span><span class="p">)</span>
+
+        <span class="n">valid_models</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;danb&#39;</span><span class="p">,</span> <span class="s1">&#39;bernoulli&#39;</span><span class="p">,</span> <span class="s1">&#39;normal&#39;</span><span class="p">,</span> <span class="s1">&#39;none&#39;</span><span class="p">}</span>
+        <span class="k">if</span> <span class="n">model</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">valid_models</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                <span class="s1">&#39;Input `model` should be one of </span><span class="si">{}</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">valid_models</span><span class="p">)</span>
+            <span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">umi_counts</span> <span class="o">=</span> <span class="n">umi_counts</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">graph</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">modules</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">local_correlation_z</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">linkage</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">module_scores</span> <span class="o">=</span> <span class="kc">None</span>
+
+<div class="viewcode-block" id="Hotspot.create_knn_graph"><a class="viewcode-back" href="../../hotspot.html#hotspot.Hotspot.create_knn_graph">[docs]</a>    <span class="k">def</span> <span class="nf">create_knn_graph</span><span class="p">(</span>
+            <span class="bp">self</span><span class="p">,</span> <span class="n">weighted_graph</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">n_neighbors</span><span class="o">=</span><span class="mi">30</span><span class="p">,</span> <span class="n">neighborhood_factor</span><span class="o">=</span><span class="mi">3</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Create&#39;s the KNN graph and graph weights</span>
+
+<span class="sd">        The resulting matrices containing the neighbors and weights are</span>
+<span class="sd">        stored in the object at `self.neighbors` and `self.weights`</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        weighted_graph: bool</span>
+<span class="sd">            Whether or not to create a weighted graph</span>
+<span class="sd">        n_neighbors: int</span>
+<span class="sd">            Neighborhood size</span>
+<span class="sd">        neighborhood_factor: float</span>
+<span class="sd">            Used when creating a weighted graph.  Sets how quickly weights decay</span>
+<span class="sd">            relative to the distances within the neighborhood.  The weight for</span>
+<span class="sd">            a cell with a distance d will decay as exp(-d/D) where D is the distance</span>
+<span class="sd">            to the `n_neighbors`/`neighborhood_factor`-th neighbor.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">latent</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">neighbors</span><span class="p">,</span> <span class="n">weights</span> <span class="o">=</span> <span class="n">neighbors_and_weights</span><span class="p">(</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">latent</span><span class="p">,</span> <span class="n">n_neighbors</span><span class="o">=</span><span class="n">n_neighbors</span><span class="p">,</span>
+                <span class="n">neighborhood_factor</span><span class="o">=</span><span class="n">neighborhood_factor</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="bp">self</span><span class="o">.</span><span class="n">tree</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">weighted_graph</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;When using `tree` as the metric space, `weighted_graph=True` is not supported&quot;</span><span class="p">)</span>
+            <span class="n">neighbors</span><span class="p">,</span> <span class="n">weights</span> <span class="o">=</span> <span class="n">tree_neighbors_and_weights</span><span class="p">(</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">tree</span><span class="p">,</span> <span class="n">n_neighbors</span><span class="o">=</span><span class="n">n_neighbors</span><span class="p">,</span> <span class="n">counts</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">counts</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">neighbors</span><span class="p">,</span> <span class="n">weights</span> <span class="o">=</span> <span class="n">neighbors_and_weights_from_distances</span><span class="p">(</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">distances</span><span class="p">,</span> <span class="n">n_neighbors</span><span class="o">=</span><span class="n">n_neighbors</span><span class="p">,</span>
+                <span class="n">neighborhood_factor</span><span class="o">=</span><span class="n">neighborhood_factor</span><span class="p">)</span>
+
+        <span class="n">neighbors</span> <span class="o">=</span> <span class="n">neighbors</span><span class="o">.</span><span class="n">loc</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">counts</span><span class="o">.</span><span class="n">columns</span><span class="p">]</span>
+        <span class="n">weights</span> <span class="o">=</span> <span class="n">weights</span><span class="o">.</span><span class="n">loc</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">counts</span><span class="o">.</span><span class="n">columns</span><span class="p">]</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">neighbors</span> <span class="o">=</span> <span class="n">neighbors</span>
+
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">weighted_graph</span><span class="p">:</span>
+            <span class="n">weights</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">(</span>
+                <span class="n">np</span><span class="o">.</span><span class="n">ones_like</span><span class="p">(</span><span class="n">weights</span><span class="o">.</span><span class="n">values</span><span class="p">),</span>
+                <span class="n">index</span><span class="o">=</span><span class="n">weights</span><span class="o">.</span><span class="n">index</span><span class="p">,</span> <span class="n">columns</span><span class="o">=</span><span class="n">weights</span><span class="o">.</span><span class="n">columns</span>
+            <span class="p">)</span>
+
+        <span class="n">weights</span> <span class="o">=</span> <span class="n">make_weights_non_redundant</span><span class="p">(</span><span class="n">neighbors</span><span class="o">.</span><span class="n">values</span><span class="p">,</span> <span class="n">weights</span><span class="o">.</span><span class="n">values</span><span class="p">)</span>
+
+        <span class="n">weights</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">(</span>
+            <span class="n">weights</span><span class="p">,</span> <span class="n">index</span><span class="o">=</span><span class="n">neighbors</span><span class="o">.</span><span class="n">index</span><span class="p">,</span> <span class="n">columns</span><span class="o">=</span><span class="n">neighbors</span><span class="o">.</span><span class="n">columns</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">weights</span> <span class="o">=</span> <span class="n">weights</span></div>
+
+<div class="viewcode-block" id="Hotspot.compute_hotspot"><a class="viewcode-back" href="../../hotspot.html#hotspot.Hotspot.compute_hotspot">[docs]</a>    <span class="k">def</span> <span class="nf">compute_hotspot</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">jobs</span><span class="o">=</span><span class="mi">1</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Perform feature selection using local autocorrelation</span>
+
+<span class="sd">        In addition to returning output, this also stores the output</span>
+<span class="sd">        in `self.results`.</span>
+
+<span class="sd">        Alias for `self.compute_autocorrelations`</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        jobs: int</span>
+<span class="sd">            Number of parallel jobs to run</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        results : pandas.DataFrame</span>
+<span class="sd">            A dataframe with four columns:</span>
+
+<span class="sd">              - C: Scaled -1:1 autocorrelation coeficients</span>
+<span class="sd">              - Z: Z-score for autocorrelation</span>
+<span class="sd">              - Pval:  P-values computed from Z-scores</span>
+<span class="sd">              - FDR:  Q-values using the Benjamini-Hochberg procedure</span>
+
+<span class="sd">            Gene ids are in the index</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="n">results</span> <span class="o">=</span> <span class="n">compute_hs</span><span class="p">(</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">counts</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">neighbors</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">weights</span><span class="p">,</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">umi_counts</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">model</span><span class="p">,</span> <span class="n">centered</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">jobs</span><span class="o">=</span><span class="n">jobs</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">results</span> <span class="o">=</span> <span class="n">results</span>
+
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">results</span></div>
+
+<div class="viewcode-block" id="Hotspot.compute_autocorrelations"><a class="viewcode-back" href="../../hotspot.html#hotspot.Hotspot.compute_autocorrelations">[docs]</a>    <span class="k">def</span> <span class="nf">compute_autocorrelations</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">jobs</span><span class="o">=</span><span class="mi">1</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Perform feature selection using local autocorrelation</span>
+
+<span class="sd">        In addition to returning output, this also stores the output</span>
+<span class="sd">        in `self.results`</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        jobs: int</span>
+<span class="sd">            Number of parallel jobs to run</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        results : pandas.DataFrame</span>
+<span class="sd">            A dataframe with four columns:</span>
+
+<span class="sd">              - C: Scaled -1:1 autocorrelation coeficients</span>
+<span class="sd">              - Z: Z-score for autocorrelation</span>
+<span class="sd">              - Pval:  P-values computed from Z-scores</span>
+<span class="sd">              - FDR:  Q-values using the Benjamini-Hochberg procedure</span>
+
+<span class="sd">            Gene ids are in the index</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">compute_hotspot</span><span class="p">(</span><span class="n">jobs</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="Hotspot.compute_local_correlations"><a class="viewcode-back" href="../../hotspot.html#hotspot.Hotspot.compute_local_correlations">[docs]</a>    <span class="k">def</span> <span class="nf">compute_local_correlations</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">genes</span><span class="p">,</span> <span class="n">jobs</span><span class="o">=</span><span class="mi">1</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Define gene-gene relationships with pair-wise local correlations</span>
+
+<span class="sd">        In addition to returning output, this method stores its result</span>
+<span class="sd">        in `self.local_correlation_z`</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        genes: iterable of str</span>
+<span class="sd">            gene identifies to compute local correlations on</span>
+<span class="sd">            should be a smaller subset of all genes</span>
+<span class="sd">        jobs: int</span>
+<span class="sd">            Number of parallel jobs to run</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        local_correlation_z : pd.Dataframe</span>
+<span class="sd">                local correlation Z-scores between genes</span>
+<span class="sd">                shape is genes x genes</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="nb">print</span><span class="p">(</span>
+            <span class="s2">&quot;Computing pair-wise local correlation on </span><span class="si">{}</span><span class="s2"> features...&quot;</span>
+            <span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">genes</span><span class="p">))</span>
+        <span class="p">)</span>
+
+        <span class="n">lc</span><span class="p">,</span> <span class="n">lcz</span> <span class="o">=</span> <span class="n">compute_hs_pairs_centered_cond</span><span class="p">(</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">counts</span><span class="o">.</span><span class="n">loc</span><span class="p">[</span><span class="n">genes</span><span class="p">],</span> <span class="bp">self</span><span class="o">.</span><span class="n">neighbors</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">weights</span><span class="p">,</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">umi_counts</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">model</span><span class="p">,</span> <span class="n">jobs</span><span class="o">=</span><span class="n">jobs</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">local_correlation_c</span> <span class="o">=</span> <span class="n">lc</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">local_correlation_z</span> <span class="o">=</span> <span class="n">lcz</span>
+
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">local_correlation_z</span></div>
+
+<div class="viewcode-block" id="Hotspot.create_modules"><a class="viewcode-back" href="../../hotspot.html#hotspot.Hotspot.create_modules">[docs]</a>    <span class="k">def</span> <span class="nf">create_modules</span><span class="p">(</span>
+            <span class="bp">self</span><span class="p">,</span> <span class="n">min_gene_threshold</span><span class="o">=</span><span class="mi">20</span><span class="p">,</span> <span class="n">core_only</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">fdr_threshold</span><span class="o">=</span><span class="mf">0.05</span>
+    <span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Groups genes into modules</span>
+
+<span class="sd">        In addition to being returned, the results of this method are retained</span>
+<span class="sd">        in the object at `self.modules`.  Additionally, the linkage matrix</span>
+<span class="sd">        (in the same form as that of scipy.cluster.hierarchy.linkage) is saved</span>
+<span class="sd">        in `self.linkage` for plotting or manual clustering.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        min_gene_threshold: int</span>
+<span class="sd">            Controls how small modules can be.  Increase if there are too many</span>
+<span class="sd">            modules being formed.  Decrease if substructre is not being captured</span>
+<span class="sd">        core_only: bool</span>
+<span class="sd">            Whether or not to assign ambiguous genes to a module or leave unassigned</span>
+<span class="sd">        fdr_threshold: float</span>
+<span class="sd">            Correlation theshold at which to stop assigning genes to modules</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        modules: pandas.Series</span>
+<span class="sd">            Maps gene to module number.  Unassigned genes are indicated with -1</span>
+
+
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="n">gene_modules</span><span class="p">,</span> <span class="n">Z</span> <span class="o">=</span> <span class="n">modules</span><span class="o">.</span><span class="n">compute_modules</span><span class="p">(</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">local_correlation_z</span><span class="p">,</span> <span class="n">min_gene_threshold</span><span class="o">=</span><span class="n">min_gene_threshold</span><span class="p">,</span>
+            <span class="n">fdr_threshold</span><span class="o">=</span><span class="n">fdr_threshold</span><span class="p">,</span> <span class="n">core_only</span><span class="o">=</span><span class="n">core_only</span>
+        <span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">modules</span> <span class="o">=</span> <span class="n">gene_modules</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">linkage</span> <span class="o">=</span> <span class="n">Z</span>
+
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">modules</span></div>
+
+<div class="viewcode-block" id="Hotspot.calculate_module_scores"><a class="viewcode-back" href="../../hotspot.html#hotspot.Hotspot.calculate_module_scores">[docs]</a>    <span class="k">def</span> <span class="nf">calculate_module_scores</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Calculate Module Scores</span>
+
+<span class="sd">        In addition to returning its result, this method stores</span>
+<span class="sd">        its output in the object at `self.module_scores`</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        module_scores: pandas.DataFrame</span>
+<span class="sd">            Scores for each module for each gene</span>
+<span class="sd">            Dimensions are genes x modules</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="n">modules_to_compute</span> <span class="o">=</span> <span class="nb">sorted</span><span class="p">(</span>
+            <span class="p">[</span><span class="n">x</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">modules</span><span class="o">.</span><span class="n">unique</span><span class="p">()</span> <span class="k">if</span> <span class="n">x</span> <span class="o">!=</span> <span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+        <span class="p">)</span>
+
+        <span class="nb">print</span><span class="p">(</span>
+            <span class="s2">&quot;Computing scores for </span><span class="si">{}</span><span class="s2"> modules...&quot;</span>
+            <span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">modules_to_compute</span><span class="p">))</span>
+        <span class="p">)</span>
+
+        <span class="n">module_scores</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="k">for</span> <span class="n">module</span> <span class="ow">in</span> <span class="n">tqdm</span><span class="p">(</span><span class="n">modules_to_compute</span><span class="p">):</span>
+            <span class="n">module_genes</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">modules</span><span class="o">.</span><span class="n">index</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">modules</span> <span class="o">==</span> <span class="n">module</span><span class="p">]</span>
+
+            <span class="n">scores</span> <span class="o">=</span> <span class="n">modules</span><span class="o">.</span><span class="n">compute_scores</span><span class="p">(</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">counts</span><span class="o">.</span><span class="n">loc</span><span class="p">[</span><span class="n">module_genes</span><span class="p">]</span><span class="o">.</span><span class="n">values</span><span class="p">,</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">model</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">umi_counts</span><span class="o">.</span><span class="n">values</span><span class="p">,</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">neighbors</span><span class="o">.</span><span class="n">values</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">weights</span><span class="o">.</span><span class="n">values</span>
+            <span class="p">)</span>
+
+            <span class="n">module_scores</span><span class="p">[</span><span class="n">module</span><span class="p">]</span> <span class="o">=</span> <span class="n">scores</span>
+
+        <span class="n">module_scores</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">(</span><span class="n">module_scores</span><span class="p">)</span>
+        <span class="n">module_scores</span><span class="o">.</span><span class="n">index</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">counts</span><span class="o">.</span><span class="n">columns</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">module_scores</span> <span class="o">=</span> <span class="n">module_scores</span>
+
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">module_scores</span></div>
+
+<div class="viewcode-block" id="Hotspot.plot_local_correlations"><a class="viewcode-back" href="../../hotspot.html#hotspot.Hotspot.plot_local_correlations">[docs]</a>    <span class="k">def</span> <span class="nf">plot_local_correlations</span><span class="p">(</span>
+            <span class="bp">self</span><span class="p">,</span> <span class="n">mod_cmap</span><span class="o">=</span><span class="s1">&#39;tab10&#39;</span><span class="p">,</span> <span class="n">vmin</span><span class="o">=-</span><span class="mi">8</span><span class="p">,</span> <span class="n">vmax</span><span class="o">=</span><span class="mi">8</span><span class="p">,</span>
+            <span class="n">z_cmap</span><span class="o">=</span><span class="s1">&#39;RdBu_r&#39;</span><span class="p">,</span> <span class="n">yticklabels</span><span class="o">=</span><span class="kc">False</span>
+    <span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Plots a clustergrid of the local correlation values</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        mod_cmap: valid matplotlib colormap str or object</span>
+<span class="sd">            discrete colormap for module assignments on the left side</span>
+<span class="sd">        vmin: float</span>
+<span class="sd">            minimum value for colorscale for Z-scores</span>
+<span class="sd">        vmax: float</span>
+<span class="sd">            maximum value for colorscale for Z-scores</span>
+<span class="sd">        z_cmap: valid matplotlib colormap str or object</span>
+<span class="sd">            continuous colormap for correlation Z-scores</span>
+<span class="sd">        yticklabels: bool</span>
+<span class="sd">            Whether or not to plot all gene labels</span>
+<span class="sd">            Default is false as there are too many.  However</span>
+<span class="sd">            if using this plot interactively you may with to set</span>
+<span class="sd">            to true so you can zoom in and read gene names</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="k">return</span> <span class="n">local_correlation_plot</span><span class="p">(</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">local_correlation_z</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">modules</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">linkage</span><span class="p">,</span>
+                    <span class="n">mod_cmap</span><span class="o">=</span><span class="n">mod_cmap</span><span class="p">,</span> <span class="n">vmin</span><span class="o">=</span><span class="n">vmin</span><span class="p">,</span> <span class="n">vmax</span><span class="o">=</span><span class="n">vmax</span><span class="p">,</span>
+                    <span class="n">z_cmap</span><span class="o">=</span><span class="n">z_cmap</span><span class="p">,</span> <span class="n">yticklabels</span><span class="o">=</span><span class="n">yticklabels</span>
+        <span class="p">)</span></div></div>
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../genindex.html" title="General Index"
+             >index</a></li>
+        <li class="nav-item nav-item-0"><a href="../../index.html">Hotspot  documentation</a> &#187;</li>
+          <li class="nav-item nav-item-1"><a href="../index.html" >Module code</a> &#187;</li> 
+      </ul>
+    </div>
+    <div class="footer" role="contentinfo">
+        &#169; Copyright 2020, David DeTomaso.
+      Created using <a href="http://sphinx-doc.org/">Sphinx</a> 1.8.2.
+    </div>
+  </body>
+</html>

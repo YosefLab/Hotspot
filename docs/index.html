@@ -1,0 +1,468 @@
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="X-UA-Compatible" content="IE=Edge" />
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <title>Hotspot &#8212; Hotspot  documentation</title>
+    <link rel="stylesheet" href="_static/sphinxdoc.css" type="text/css" />
+    <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+    <script type="text/javascript" id="documentation_options" data-url_root="./" src="_static/documentation_options.js"></script>
+    <script type="text/javascript" src="_static/jquery.js"></script>
+    <script type="text/javascript" src="_static/underscore.js"></script>
+    <script type="text/javascript" src="_static/doctools.js"></script>
+    <script crossorigin="anonymous" integrity="sha256-Ae2Vz/4ePdIu6ZyI/5ZGsYnb+m0JlOmKPjt6XZ9JJkA=" type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.4/require.min.js"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="Demo: Spatial data from Slide-seq" href="Spatial_Tutorial.html" /> 
+  </head><body>
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="Spatial_Tutorial.html" title="Demo: Spatial data from Slide-seq"
+             accesskey="N">next</a> |</li>
+        <li class="nav-item nav-item-0"><a href="#">Hotspot  documentation</a> &#187;</li> 
+      </ul>
+    </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+  <h3><a href="#">Table of Contents</a></h3>
+  <ul>
+<li><a class="reference internal" href="#">Hotspot</a></li>
+<li><a class="reference internal" href="#installation">Installation</a></li>
+<li><a class="reference internal" href="#usage">Usage</a><ul>
+<li><a class="reference internal" href="#create-the-hotspot-object">Create the Hotspot object</a><ul>
+<li><a class="reference internal" href="#alternative-choices-for-model">Alternative choices for ‘model’</a></li>
+<li><a class="reference internal" href="#choosing-different-metrics">Choosing different metrics</a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#compute-the-knn-graph">Compute the KNN graph</a></li>
+<li><a class="reference internal" href="#find-informative-genes-by-gene-autocorrelation">Find informative genes (by gene autocorrelation)</a></li>
+<li><a class="reference internal" href="#evaluate-pair-wise-gene-associations-gene-local-correlations">Evaluate pair-wise gene associations (gene local correlations)</a></li>
+<li><a class="reference internal" href="#group-genes-into-modules">Group genes into modules</a></li>
+<li><a class="reference internal" href="#compute-summary-per-cell-module-scores">Compute summary per-cell module scores</a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#examples">Examples</a></li>
+<li><a class="reference internal" href="#full-module-reference">Full Module Reference</a></li>
+</ul>
+
+  <h4>Next topic</h4>
+  <p class="topless"><a href="Spatial_Tutorial.html"
+                        title="next chapter">Demo: Spatial data from Slide-seq</a></p>
+  <div role="note" aria-label="source link">
+    <h3>This Page</h3>
+    <ul class="this-page-menu">
+      <li><a href="_sources/index.rst.txt"
+            rel="nofollow">Show Source</a></li>
+    </ul>
+   </div>
+<div id="searchbox" style="display: none" role="search">
+  <h3>Quick search</h3>
+    <div class="searchformwrapper">
+    <form class="search" action="search.html" method="get">
+      <input type="text" name="q" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    </div>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <div class="section" id="hotspot">
+<h1>Hotspot<a class="headerlink" href="#hotspot" title="Permalink to this headline">¶</a></h1>
+<p>Hotspot is a tool for identifying informative genes (and gene modules)
+in a single-cell dataset.</p>
+<p><a class="reference external" href="https://github.com/YosefLab/Hotspot">Github Link</a></p>
+<p>Importantly ‘informative’ is decided based on how well a gene’s
+variation agrees with some cell metric - some similarity mapping between
+cells.</p>
+<p>Genes which are informative are those whose expression varies in similar
+way among cells which are nearby in the given metric.</p>
+<p>The choice of metric allows you to evaluate different types of gene
+modules:</p>
+<ul class="simple">
+<li>Spatial: For spatial single-cell datasets, you can define cell
+similarity by proximity in physical, 2D/3D space. When set up this
+way, Hotspot can be used to identify <strong>spatially-varying genes</strong>.</li>
+<li>Lineage: For single-cell datasets with a lineage tracing system, you
+can infer a cell developmental lineage and use that as the cell
+metric. Then Hotspot can be used to identify <strong>heritable patterns of
+gene expression.</strong></li>
+<li>Transcriptional: The result of a dimensionality reduction procedure
+can be used create the similarity metric. With this configuration,
+Hotspot identifies gene modules with local correlation. This can be
+particularly useful for interpreting axes of variation in non-linear
+dimensionality reduction procedures where the mapping between
+components and genes is not straightforward to evaluate.</li>
+</ul>
+</div>
+<div class="section" id="installation">
+<h1>Installation<a class="headerlink" href="#installation" title="Permalink to this headline">¶</a></h1>
+<p>Hotspot is installed directly fro mthe git repository using the
+following command:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">pip</span> <span class="n">install</span> <span class="n">git</span><span class="o">+</span><span class="n">https</span><span class="p">:</span><span class="o">//</span><span class="n">github</span><span class="o">.</span><span class="n">com</span><span class="o">/</span><span class="n">yoseflab</span><span class="o">/</span><span class="n">Hotspot</span><span class="o">.</span><span class="n">git</span>
+</pre></div>
+</div>
+</div>
+<div class="section" id="usage">
+<h1>Usage<a class="headerlink" href="#usage" title="Permalink to this headline">¶</a></h1>
+<p>The following steps are used when analyzing data in Hotspot:</p>
+<ol class="arabic simple">
+<li>Create the Hotspot object</li>
+<li>Compute the KNN graph</li>
+<li>Find informative genes (by gene autocorrelation)</li>
+<li>Evaluate pair-wise gene associations (gene local correlations)</li>
+<li>Group genes into modules</li>
+<li>Compute summary per-cell module scores</li>
+</ol>
+<p>Here we describe each step in order:</p>
+<div class="section" id="create-the-hotspot-object">
+<h2>Create the Hotspot object<a class="headerlink" href="#create-the-hotspot-object" title="Permalink to this headline">¶</a></h2>
+<p>To start an analysis, first create the hotspot object When creating the
+object, you need to specify:</p>
+<ul class="simple">
+<li>The gene counts matrix</li>
+<li>Which background model of gene expression to use</li>
+<li>The metric space to use to evaluate cell-similarity</li>
+<li>The per-cell scaling factor<ul>
+<li>By default, number of umi per cell is used</li>
+</ul>
+</li>
+</ul>
+<p>For example:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span> <span class="nn">hotspot</span>
+<span class="n">hs</span> <span class="o">=</span> <span class="n">hotspot</span><span class="o">.</span><span class="n">Hotspot</span><span class="p">(</span><span class="n">counts</span><span class="p">,</span> <span class="n">model</span><span class="o">=</span><span class="s1">&#39;danb&#39;</span><span class="p">,</span> <span class="n">latent</span><span class="o">=</span><span class="n">pca_results</span><span class="p">,</span> <span class="n">umi_counts</span><span class="o">=</span><span class="n">umi_counts</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>In the example above:</p>
+<ul class="simple">
+<li><code class="docutils literal notranslate"><span class="pre">counts</span></code> is a Genes X Cells pandas DataFrame of gene counts</li>
+<li><code class="docutils literal notranslate"><span class="pre">model</span></code> ‘danb’ selects the umi-adjusted negative binomial model</li>
+<li><code class="docutils literal notranslate"><span class="pre">latent</span></code> is a Cells x Components pandas DataFrame (the PCA-reduced
+space)</li>
+<li><code class="docutils literal notranslate"><span class="pre">umi_counts</span></code> is a pandas Series with UMI count for each cell</li>
+</ul>
+<div class="section" id="alternative-choices-for-model">
+<h3>Alternative choices for ‘model’<a class="headerlink" href="#alternative-choices-for-model" title="Permalink to this headline">¶</a></h3>
+<p>The model is used to fit per-cell expectations for each gene assuming no
+correlations. This is used as the null model when evaluating
+autocorrelation and gene-gene local correlations. The choices are:</p>
+<ul class="simple">
+<li><strong>danb</strong>: ‘Depth-adjusted negative binomial’ (aka NBDisp model) from
+<a class="reference external" href="https://bioconductor.org/packages/release/bioc/html/M3Drop.html">M3Drop</a></li>
+<li><strong>bernoulli</strong>: Here only the detection probability for each gene is
+estimated. Logistic regression on gene bins is used to evaluate this
+per-gene and per-cell as a function of the cells <code class="docutils literal notranslate"><span class="pre">umi_count</span></code> value.</li>
+<li><strong>normal</strong>: Here expression values are assumed to be
+normally-distributed and scaled by the values in <code class="docutils literal notranslate"><span class="pre">umi_count</span></code>.</li>
+<li><strong>none</strong>: With this option, the values are assumed to be
+pre-standardized</li>
+</ul>
+</div>
+<div class="section" id="choosing-different-metrics">
+<h3>Choosing different metrics<a class="headerlink" href="#choosing-different-metrics" title="Permalink to this headline">¶</a></h3>
+<p>Above we used <code class="docutils literal notranslate"><span class="pre">latent</span></code> as the input option. This assumes that cells
+are in an N-dimensional space and similarity between cells is evaluated
+by computing euclidean distances in this space. Either the results of a
+dimensionality reduction or modeling procedure can be input here, or
+when working with spatial data, the per-cell coordinates.</p>
+<p>Alternately, instead of <code class="docutils literal notranslate"><span class="pre">latent</span></code>, you can specify either <code class="docutils literal notranslate"><span class="pre">tree</span></code> or
+<code class="docutils literal notranslate"><span class="pre">distances</span></code>.</p>
+<p><code class="docutils literal notranslate"><span class="pre">tree</span></code> is used for a developmental lineage. In this form, <code class="docutils literal notranslate"><span class="pre">tree</span></code>
+should be an <code class="docutils literal notranslate"><span class="pre">ete3.TreeNode</span></code> object representing the root of a Tree
+with each cell as its leaves. This could be constructed programmatically
+(see ete3’s documentation for details) or if your lineage is stored in a
+Newick file format, you can load it into an ete3.TreeNode object by
+running <code class="docutils literal notranslate"><span class="pre">ete3.Tree('my_newick.txt')</span></code>. Note: leaf nodes in the tree
+must have names that match the column labels in the <code class="docutils literal notranslate"><span class="pre">counts</span></code> input
+(e.g., cell barcodes).</p>
+<p><code class="docutils literal notranslate"><span class="pre">distances</span></code> is used to specify cell-cell distances directly. The value
+entered should be a Cells x Cells pandas DataFrame.</p>
+</div>
+</div>
+<div class="section" id="compute-the-knn-graph">
+<h2>Compute the KNN graph<a class="headerlink" href="#compute-the-knn-graph" title="Permalink to this headline">¶</a></h2>
+<p>The K-nearest-neighbors graph is computed by running:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">hs</span><span class="o">.</span><span class="n">create_knn_graph</span><span class="p">(</span><span class="n">weighted_graph</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">n_neighbors</span><span class="o">=</span><span class="mi">30</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>Input options:</p>
+<ul class="simple">
+<li><code class="docutils literal notranslate"><span class="pre">weighted_graph</span></code>: bool, whether or not the graph has weights
+(scaled by cell-cell distances) or is binary</li>
+<li><code class="docutils literal notranslate"><span class="pre">n_neighbors</span></code>: the number of neighbors per cell to use. Larger
+neighborhood sizes can result in more robust detection of
+correlations and autocorrelations at a cost of missing more
+fine-grained, smaller-scale patterns and increasing run-time</li>
+<li><code class="docutils literal notranslate"><span class="pre">neighborhood_factor</span></code>: float, used when <code class="docutils literal notranslate"><span class="pre">weighted_graph=True</span></code>.
+Weights decay proportionally to <code class="docutils literal notranslate"><span class="pre">exp(-distance^2/distance_N^2)</span></code>
+where <code class="docutils literal notranslate"><span class="pre">distance_N</span></code> is the distance to the
+<code class="docutils literal notranslate"><span class="pre">n_neighbors/neighborhood_factor</span></code>th neighbor.</li>
+</ul>
+<p>Generally, the above defaults should be fine in most cases.</p>
+</div>
+<div class="section" id="find-informative-genes-by-gene-autocorrelation">
+<h2>Find informative genes (by gene autocorrelation)<a class="headerlink" href="#find-informative-genes-by-gene-autocorrelation" title="Permalink to this headline">¶</a></h2>
+<p>To compute per-gene autocorrelations, run:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">hs_results</span> <span class="o">=</span> <span class="n">hs</span><span class="o">.</span><span class="n">compute_autocorrelations</span><span class="p">()</span>
+</pre></div>
+</div>
+<p>An optional argument, <code class="docutils literal notranslate"><span class="pre">jobs</span></code> can be specified to invoke parallel jobs
+for a speedup on multi-core machines.</p>
+<p>The output is a pandas DataFrame (and is also saved in <code class="docutils literal notranslate"><span class="pre">hs.results</span></code>):</p>
+<table border="1" class="docutils">
+<colgroup>
+<col width="33%" />
+<col width="13%" />
+<col width="15%" />
+<col width="19%" />
+<col width="19%" />
+</colgroup>
+<thead valign="bottom">
+<tr class="row-odd"><th class="head">Gene</th>
+<th class="head">C</th>
+<th class="head">Z</th>
+<th class="head">Pval</th>
+<th class="head">FDR</th>
+</tr>
+</thead>
+<tbody valign="top">
+<tr class="row-even"><td>ENSG00000139644</td>
+<td>0.069</td>
+<td>10.527</td>
+<td>3.21e-26</td>
+<td>7.45e-25</td>
+</tr>
+<tr class="row-odd"><td>ENSG00000179218</td>
+<td>0.071</td>
+<td>10.521</td>
+<td>3.43e-26</td>
+<td>7.93e-25</td>
+</tr>
+<tr class="row-even"><td>ENSG00000196139</td>
+<td>0.081</td>
+<td>10.517</td>
+<td>3.59e-26</td>
+<td>8.28e-25</td>
+</tr>
+<tr class="row-odd"><td>ENSG00000119801</td>
+<td>0.062</td>
+<td>10.515</td>
+<td>3.68e-26</td>
+<td>8.48e-25</td>
+</tr>
+<tr class="row-even"><td>ENSG00000233355</td>
+<td>0.058</td>
+<td>10.503</td>
+<td>4.15e-26</td>
+<td>9.55e-25</td>
+</tr>
+<tr class="row-odd"><td>…</td>
+<td>…</td>
+<td>…</td>
+<td>…</td>
+<td>…</td>
+</tr>
+</tbody>
+</table>
+<p>Columns are:</p>
+<ul class="simple">
+<li><code class="docutils literal notranslate"><span class="pre">C</span></code>: Scaled -1:1 autocorrelation coeficients</li>
+<li><code class="docutils literal notranslate"><span class="pre">Z</span></code>: Z-score for autocorrelation</li>
+<li><code class="docutils literal notranslate"><span class="pre">Pval</span></code>: P-values computed from Z-scores</li>
+<li><code class="docutils literal notranslate"><span class="pre">FDR</span></code>: Q-values using the Benjamini-Hochberg procedure</li>
+</ul>
+</div>
+<div class="section" id="evaluate-pair-wise-gene-associations-gene-local-correlations">
+<h2>Evaluate pair-wise gene associations (gene local correlations)<a class="headerlink" href="#evaluate-pair-wise-gene-associations-gene-local-correlations" title="Permalink to this headline">¶</a></h2>
+<p>To group genes into modules, we need to first evaluate their pair-wise
+local correlations</p>
+<p>Better than regular correlations, these ‘local’ correlations also take
+into accounts associations where one gene, X, is expression ‘near’
+another gene Y in the map. This can better resolve correlations between
+sparsely detected genes.</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">hs_genes</span> <span class="o">=</span> <span class="n">hs_results</span><span class="o">.</span><span class="n">loc</span><span class="p">[</span><span class="n">hs_results</span><span class="o">.</span><span class="n">FDR</span> <span class="o">&lt;</span> <span class="mf">0.05</span><span class="p">]</span><span class="o">.</span><span class="n">index</span> <span class="c1"># Select genes</span>
+
+<span class="n">local_correlations</span> <span class="o">=</span> <span class="n">hs</span><span class="o">.</span><span class="n">compute_local_correlations</span><span class="p">(</span><span class="n">hs_genes</span><span class="p">,</span> <span class="n">jobs</span><span class="o">=</span><span class="mi">4</span><span class="p">)</span> <span class="c1"># jobs for parallelization</span>
+</pre></div>
+</div>
+<p>Here we run only on a subset of genes as evaluating all pair-wise
+correlations is very expensive computationally. The autocorrelation
+ordering gives us a natural method to select the informative genes for
+this purpose.</p>
+<p>The output is a genes x genes pandas DataFrame of Z-scores for the local
+correlation values between genes. The output is also stored in
+<code class="docutils literal notranslate"><span class="pre">hs.local_correlation_z</span></code>.</p>
+</div>
+<div class="section" id="group-genes-into-modules">
+<h2>Group genes into modules<a class="headerlink" href="#group-genes-into-modules" title="Permalink to this headline">¶</a></h2>
+<p>Now that pair-wise local correlations are calculated, we can group genes
+into modules.</p>
+<p>To do this, a convenience method is included <code class="docutils literal notranslate"><span class="pre">create_modules</span></code> which
+performs agglomerative clustering.</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">modules</span> <span class="o">=</span> <span class="n">hs</span><span class="o">.</span><span class="n">create_modules</span><span class="p">(</span>
+    <span class="n">min_gene_threshold</span><span class="o">=</span><span class="mi">30</span><span class="p">,</span> <span class="n">core_only</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">fdr_threshold</span><span class="o">=</span><span class="mf">0.05</span>
+<span class="p">)</span>
+</pre></div>
+</div>
+<p>A note on the arguments - agglomerative clustering proceeds by joining
+together genes with the highest pair-wise Z-score with the following
+caveats:</p>
+<ul class="simple">
+<li>If the FDR-adjusted p-value of the correlation between two branches
+exceeds <code class="docutils literal notranslate"><span class="pre">fdr_threshold</span></code>, then the branches are not merged.</li>
+<li>If two branches are two be merged and they are both have at least
+<code class="docutils literal notranslate"><span class="pre">min_gene_threshold</span></code> genes, then the branches are not merged.
+Further genes that would join to the resulting merged module smaller
+average correlations between genes, i.e. the least-dense module (if
+<code class="docutils literal notranslate"><span class="pre">core_only=False</span></code>)</li>
+</ul>
+<p>This method was used to preserved substructure (nested modules) while
+still giving the analyst some control. However, since there are a lot of
+ways to do hierarchical clustering, you can also manually cluster using
+the gene-distances in <code class="docutils literal notranslate"><span class="pre">hs.local_correlation_z</span></code></p>
+<p>The output is a pandas Series that maps gene to module number.
+Unassigned genes are indicated with a module number of <code class="docutils literal notranslate"><span class="pre">-1</span></code>. The
+output is also stored in <code class="docutils literal notranslate"><span class="pre">hs.modules</span></code></p>
+<p>Correlation modules can be visualized by running
+<code class="docutils literal notranslate"><span class="pre">hs.plot_local_correlations()</span></code>:</p>
+<a class="reference internal image-reference" href="_images/corr_plot.png"><img alt="Local Correlation Plot" src="_images/corr_plot.png" style="width: 500px;" /></a>
+</div>
+<div class="section" id="compute-summary-per-cell-module-scores">
+<h2>Compute summary per-cell module scores<a class="headerlink" href="#compute-summary-per-cell-module-scores" title="Permalink to this headline">¶</a></h2>
+<p>Finally, summary per-cell scores can be computed for a module. This is
+useful for visualizng the general pattern of expression for genes in a
+module.</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">module_scores</span> <span class="o">=</span> <span class="n">hs</span><span class="o">.</span><span class="n">calculate_module_scores</span><span class="p">()</span>
+</pre></div>
+</div>
+<p>The output is a pandas DataFrame (cells x modules) and is also saved in
+<code class="docutils literal notranslate"><span class="pre">hs.module_scores</span></code></p>
+<p><code class="docutils literal notranslate"><span class="pre">module_scores</span></code>:</p>
+<table border="1" class="docutils">
+<colgroup>
+<col width="33%" />
+<col width="13%" />
+<col width="13%" />
+<col width="13%" />
+<col width="13%" />
+<col width="13%" />
+</colgroup>
+<thead valign="bottom">
+<tr class="row-odd"><th class="head">&#160;</th>
+<th class="head">1</th>
+<th class="head">2</th>
+<th class="head">3</th>
+<th class="head">4</th>
+<th class="head">5</th>
+</tr>
+</thead>
+<tbody valign="top">
+<tr class="row-even"><td>AAACCCAAGGCCTAGA-1</td>
+<td>0.785</td>
+<td>-2.475</td>
+<td>-1.407</td>
+<td>-0.681</td>
+<td>-1.882</td>
+</tr>
+<tr class="row-odd"><td>AAACCCAGTCGTGCCA-1</td>
+<td>-5.76</td>
+<td>5.241</td>
+<td>6.931</td>
+<td>1.928</td>
+<td>4.317</td>
+</tr>
+<tr class="row-even"><td>AAACCCATCGTGCATA-1</td>
+<td>-2.619</td>
+<td>3.572</td>
+<td>0.143</td>
+<td>1.832</td>
+<td>1.585</td>
+</tr>
+<tr class="row-odd"><td>AAACGAAGTAATGATG-1</td>
+<td>-8.778</td>
+<td>4.012</td>
+<td>6.927</td>
+<td>1.181</td>
+<td>3.882</td>
+</tr>
+<tr class="row-even"><td>AAACGCTCATGCACTA-1</td>
+<td>2.297</td>
+<td>-2.517</td>
+<td>-1.421</td>
+<td>-1.102</td>
+<td>-1.547</td>
+</tr>
+<tr class="row-odd"><td>…</td>
+<td>…</td>
+<td>…</td>
+<td>…</td>
+<td>…</td>
+<td>…</td>
+</tr>
+</tbody>
+</table>
+<p>These can then be plotted onto other visual representations of the
+cells. For example, for spatial modules (from data in <a class="reference external" href="https://www.ncbi.nlm.nih.gov/pubmed/30923225">Rodriques et al,
+2019</a>) this looks like:</p>
+<a class="reference internal image-reference" href="_images/module_scores.png"><img alt="Spatial Gene Modules" src="_images/module_scores.png" style="width: 500px;" /></a>
+</div>
+</div>
+<div class="section" id="examples">
+<h1>Examples<a class="headerlink" href="#examples" title="Permalink to this headline">¶</a></h1>
+<div class="toctree-wrapper compound">
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="Spatial_Tutorial.html">Demo: Spatial data from Slide-seq</a></li>
+<li class="toctree-l1"><a class="reference internal" href="Lineage_Tutorial.html">Demo: Lineage-recorded data from Chan et al, (Nature 2019)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="CD4_Tutorial.html">Demo: Transcriptional Patterns in CD4 T Cells</a></li>
+</ul>
+</div>
+</div>
+<div class="section" id="full-module-reference">
+<h1>Full Module Reference<a class="headerlink" href="#full-module-reference" title="Permalink to this headline">¶</a></h1>
+<div class="toctree-wrapper compound">
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="hotspot.html">Function Reference</a></li>
+</ul>
+</div>
+</div>
+
+
+          </div>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="Spatial_Tutorial.html" title="Demo: Spatial data from Slide-seq"
+             >next</a> |</li>
+        <li class="nav-item nav-item-0"><a href="#">Hotspot  documentation</a> &#187;</li> 
+      </ul>
+    </div>
+    <div class="footer" role="contentinfo">
+        &#169; Copyright 2020, David DeTomaso.
+      Created using <a href="http://sphinx-doc.org/">Sphinx</a> 1.8.2.
+    </div>
+  </body>
+</html>

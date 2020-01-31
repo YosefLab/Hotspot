@@ -6,3 +6,4 @@ tags.temp
 hotspot.egg-info/
 *.pyc
 .pytest_cache/*
+docs_sphinx/build/**
