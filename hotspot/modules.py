@@ -350,4 +350,6 @@ def compute_modules(Z_scores, min_gene_threshold=10, z_threshold=3, core_only=Fa
     linkage_out = Z.copy()
     sort_linkage(linkage_out, Z.shape[0]-1, mean_dists)
 
+    out_clusters.name = 'Module'
+
     return out_clusters, linkage_out

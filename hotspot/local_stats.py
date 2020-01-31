@@ -229,6 +229,11 @@ def compute_hs(counts, neighbors, weights, num_umi,
     results['Pval'] = norm.sf(results['Z'].values)
     results['FDR'] = multipletests(results['Pval'], method='fdr_bh')[1]
 
+    results = results.sort_values('Z', ascending=False)
+    results.index.name = 'Gene'
+
+    results = results[['C', 'Z', 'Pval', 'FDR']]  # Remove other columns
+
     return results
 
 
