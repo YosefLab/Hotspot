@@ -6,6 +6,8 @@ from .utils import neighbor_smoothing_row
 from .local_stats_pairs import create_centered_counts_row
 from scipy.spatial.distance import squareform
 from scipy.cluster.hierarchy import linkage
+from scipy.stats import norm
+from statsmodels.stats.multitest import multipletests
 
 
 def compute_scores(
@@ -302,7 +304,7 @@ def assign_modules_core(Z, leaf_labels, offset, MIN_THRESHOLD=10, Z_THRESHOLD=3)
     return out_clusters
 
 
-def compute_modules(Z_scores, min_gene_threshold=10, z_threshold=3, core_only=False):
+def compute_modules(Z_scores, min_gene_threshold=10, fdr_threshold=None, z_threshold=None, core_only=False):
     """
     Assigns modules from the gene pair-wise Z-scores
 
@@ -312,8 +314,8 @@ def compute_modules(Z_scores, min_gene_threshold=10, z_threshold=3, core_only=Fa
         local correlations between genes
     min_gene_threshold: int, optional
         minimum number of genes to create a module
-    z_threshold: float, optional
-        minimum zscore to group genes into a module
+    fdr_threshold: float, optional
+        used to determine minimally significant z_score
     core_only: bool, optional
         whether or not to assign unassigned genes to a module
 
@@ -325,6 +327,17 @@ def compute_modules(Z_scores, min_gene_threshold=10, z_threshold=3, core_only=Fa
         Linkage matrix in the format used by scipy.cluster.hierarchy.linkage
 
     """
+
+    # Determine Z_Threshold from FDR threshold
+
+    allZ = squareform(  # just in case slightly not symmetric
+        Z_scores.values/2 + Z_scores.values.T/2
+    )
+    allZ = np.sort(allZ)
+    allP = norm.sf(allZ)
+    allP_c = multipletests(allP, method='fdr_bh')[1]
+    ii = np.nonzero(allP_c < fdr_threshold)[0][0]
+    z_threshold = allZ[ii]
 
     # Compute the linkage matrix
     dd = Z_scores.copy().values
