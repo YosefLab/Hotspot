@@ -39,7 +39,6 @@ def local_correlation_plot(
     )
 
     fig = plt.gcf()
-    fig.patch.set_visible(False)
     plt.sca(cm.ax_heatmap)
     plt.ylabel("")
     plt.xlabel("")

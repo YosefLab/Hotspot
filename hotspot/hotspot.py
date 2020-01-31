@@ -4,6 +4,7 @@ import pandas as pd
 from .knn import (
     neighbors_and_weights,
     neighbors_and_weights_from_distances,
+    tree_neighbors_and_weights,
     make_weights_non_redundant,
 )
 from .local_stats import compute_hs
@@ -17,10 +18,13 @@ from tqdm import tqdm
 
 class Hotspot:
 
-    def __init__(self, counts, model='danb', latent=None, distances=None, umi_counts=None):
+    def __init__(
+            self, counts, model='danb',
+            latent=None, distances=None, tree=None,
+            umi_counts=None):
         """Initialize a Hotspot object for analysis
 
-        Either `latent` or `distances` is required.
+        Either `latent` or `tree` or `distances` is required.
 
         Parameters
         ----------
@@ -32,6 +36,8 @@ class Hotspot:
 
                 - 'danb': Depth-Adjusted Negative Binomial
                 - 'bernoulli': Models probability of detection
+                - 'normal': Depth-Adjusted Normal
+                - 'none': Assumes data has been pre-standardized
 
         latent : pandas.DataFrame, optional
             Latent space encoding cell-cell similarities with euclidean
@@ -39,6 +45,8 @@ class Hotspot:
         distances : pandas.DataFrame, optional
             Distances encoding cell-cell similarities directly
             Shape is (cells x cells)
+        tree : ete3.coretype.tree.TreeNode
+            Root tree node.  Can be created using ete3.Tree
         umi_counts : pandas.Series, optional
             Total umi count per cell.  Used as a size factor.
             If omitted, the sum over genes in the counts matrix is used
@@ -47,13 +55,20 @@ class Hotspot:
         self.counts = counts
         self.latent = latent
         self.distances = distances
+        self.tree = tree
         self.model = model
 
-        if latent is None and distances is None:
-            raise ValueError("Neither `latent` or `distance` arguments were supplied.  One of these is required")
+        if latent is None and distances is None and tree is None:
+            raise ValueError("Neither `latent` or `tree` or `distance` arguments were supplied.  One of these is required")
 
         if latent is not None and distances is not None:
             raise ValueError("Both `latent` and `distances` provided - only one of these should be provided.")
+
+        if latent is not None and tree is not None:
+            raise ValueError("Both `latent` and `tree` provided - only one of these should be provided.")
+
+        if distances is not None and tree is not None:
+            raise ValueError("Both `distances` and `tree` provided - only one of these should be provided.")
 
         if latent is not None:
             assert counts.shape[1] == latent.shape[0]
@@ -61,6 +76,21 @@ class Hotspot:
         if distances is not None:
             assert counts.shape[1] == distances.shape[0]
             assert counts.shape[1] == distances.shape[1]
+
+        if tree is not None:
+            try:
+                all_leaves = []
+                for x in tree:
+                    if x.is_leaf():
+                        all_leaves.append(x.name)
+            except:
+                raise ValueError("Can't parse supplied tree")
+
+            if (
+                len(all_leaves) != counts.shape[1] or
+                len(set(all_leaves) & set(counts.columns)) != len(all_leaves)
+               ):
+                raise ValueError("Tree leaf labels don't match columns in supplied counts matrix")
 
         if umi_counts is None:
             umi_counts = counts.sum(axis=0)
@@ -70,7 +100,7 @@ class Hotspot:
         if not isinstance(umi_counts, pd.Series):
             umi_counts = pd.Series(umi_counts)
 
-        valid_models = {'danb', 'bernoulli'}
+        valid_models = {'danb', 'bernoulli', 'normal', 'none'}
         if model not in valid_models:
             raise ValueError(
                 'Input `model` should be one of {}'.format(valid_models)
@@ -108,10 +138,18 @@ class Hotspot:
             neighbors, weights = neighbors_and_weights(
                 self.latent, n_neighbors=n_neighbors,
                 neighborhood_factor=neighborhood_factor)
+        elif self.tree is not None:
+            if weighted_graph:
+                raise ValueError("When using `tree` as the metric space, `weighted_graph=True` is not supported")
+            neighbors, weights = tree_neighbors_and_weights(
+                self.tree, n_neighbors=n_neighbors, counts=self.counts)
         else:
             neighbors, weights = neighbors_and_weights_from_distances(
                 self.distances, n_neighbors=n_neighbors,
                 neighborhood_factor=neighborhood_factor)
+
+        neighbors = neighbors.loc[self.counts.columns]
+        weights = weights.loc[self.counts.columns]
 
         self.neighbors = neighbors
 
