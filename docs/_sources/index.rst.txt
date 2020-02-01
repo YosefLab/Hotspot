@@ -35,6 +35,24 @@ modules:
    dimensionality reduction procedures where the mapping between
    components and genes is not straightforward to evaluate.
 
+Tutorials
+---------
+
+.. toctree::
+   :maxdepth: 1
+
+   Spatial_Tutorial.ipynb
+   Lineage_Tutorial.ipynb
+   CD4_Tutorial.ipynb
+
+Full Module Reference
+---------------------
+
+.. toctree::
+   :maxdepth: 1
+
+   hotspot
+
 Installation
 ============
 
@@ -297,21 +315,3 @@ cells. For example, for spatial modules (from data in `Rodriques et al,
 .. image:: _static/module_scores.png
    :width: 500px
    :alt: Spatial Gene Modules
-
-Examples
-========
-
-.. toctree::
-   :maxdepth: 1
-
-   Spatial_Tutorial.ipynb
-   Lineage_Tutorial.ipynb
-   CD4_Tutorial.ipynb
-
-Full Module Reference
-=====================
-
-.. toctree::
-   :maxdepth: 2
-
-   hotspot
