@@ -14,6 +14,17 @@ The choice of metric allows you to evaluate different types of gene modules:
 - Lineage:  For single-cell datasets with a lineage tracing system, you can infer a cell developmental lineage and use that as the cell metric.  Then Hotspot can be used to identify **heritable patterns of gene expression.**
 - Transcriptional:  The result of a dimensionality reduction procedure can be used create the similarity metric. With this configuration, Hotspot identifies gene modules with local correlation.  This can be particularly useful for interpreting axes of variation in non-linear dimensionality reduction procedures where the mapping between components and genes is not straightforward to evaluate.
 
+**Examples**
+
+- [Spatial Data (Mouse Cerebellum)](https://yoseflab.github.io/Hotspot/Spatial_Tutorial.html)
+- [Lineage Data (Mouse Embryogenesis)](https://yoseflab.github.io/Hotspot/Lineage_Tutorial.html)
+- [Human CD4 T cells](https://yoseflab.github.io/Hotspot/CD4_Tutorial.html)
+
+**Other Links**
+
+- [Documentation](https://yoseflab.github.io/Hotspot)
+- [Full Method Reference](https://yoseflab.github.io/Hotspot/hotspot.html)
+
 
 # Installation
 
@@ -33,6 +44,8 @@ The following steps are used when analyzing data in Hotspot:
 4. Evaluate pair-wise gene associations (gene local correlations)
 5. Group genes into modules
 6. Compute summary per-cell module scores
+
+Here we describe each step in order:
 
 ## Create the Hotspot object
 
@@ -167,7 +180,7 @@ The output is a pandas Series that maps gene to module number.  Unassigned genes
 
 Correlation modules can be visualized by running `hs.plot_local_correlations()`:
 
-![Local Correlation Plot](address here)
+<img src="https://yoseflab.github.io/Hotspot/_images/corr_plot.png" alt="Local Correlation Plot" width="500">
 
 
 ## Compute summary per-cell module scores
@@ -193,15 +206,4 @@ The output is a pandas DataFrame (cells x modules) and is also saved in `hs.modu
 
 These can then be plotted onto other visual representations of the cells.  For example, for spatial modules (from data in [Rodriques et al, 2019](https://www.ncbi.nlm.nih.gov/pubmed/30923225)) this looks like:
 
-
-![Spatial Gene Modules](address here)
-
-# Documentation and Examples
-
-Full documentation for all methods can be found here:  [Docs](address here)
-
-**Examples**
-
-- [Spatial Data (Mouse Cerebellum)](address here)
-- [Lineage Data (Mouse Embryogenesis)](address here)
-- [Human CD4 T cells](address here)
+<img src="https://yoseflab.github.io/Hotspot/_images/module_scores.png" alt="Spatial Gene Modules" width="500">
