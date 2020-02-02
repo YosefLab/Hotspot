@@ -15,6 +15,7 @@
 import os
 import sys
 sys.path.insert(0, os.path.abspath('..'))
+import sphinx_bootstrap_theme
 
 
 # -- Project information -----------------------------------------------------
@@ -23,10 +24,11 @@ project = 'Hotspot'
 copyright = '2020, David DeTomaso'
 author = 'David DeTomaso'
 
+import hotspot
 # The short X.Y version
-version = ''
+version = hotspot.__version__
 # The full version, including alpha/beta/rc tags
-release = ''
+release = hotspot.__version__
 
 
 # -- General configuration ---------------------------------------------------
@@ -97,18 +99,34 @@ pygments_style = None
 # The theme to use for HTML and HTML Help pages.  See the documentation for
 # a list of builtin themes.
 #
-html_theme = 'sphinxdoc'
+html_theme = 'bootstrap'
+html_theme_path = sphinx_bootstrap_theme.get_html_theme_path()
 
 # Theme options are theme-specific and customize the look and feel of a theme
 # further.  For a list of options available for each theme, see the
 # documentation.
 #
-html_theme_options = {}
+html_theme_options = {
+    'navbar_site_name': 'Tutorials',
+    'navbar_sidebarrel': False,
+    'source_link_position': 'none',
+    'globaltoc_includehidden': 'false',
+    'navbar_links': [
+        ('API', 'hotspot'),
+    ],
+    'bootswatch_theme': 'flatly',
+    'navbar_pagenav_name': 'This Page',
+}
 
 # Add any paths that contain custom static files (such as style sheets) here,
 # relative to this directory. They are copied after the builtin static files,
 # so a file named "default.css" will overwrite the builtin "default.css".
 html_static_path = ['_static']
+
+html_css_files = [
+    'my-styles.css'
+]
+
 
 # Custom sidebar templates, must be a dictionary that maps document names
 # to template names.

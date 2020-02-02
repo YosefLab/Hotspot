@@ -1,0 +1,19 @@
+.navbar-default {
+    background-color: hsl(0, 98%, 16%);
+}
+
+.navbar-default .navbar-brand:hover, .navbar-default .navbar-brand:focus {
+    color: #DDDDDD;
+}
+
+.navbar-default .navbar-nav>li>a:hover, .navbar-default .navbar-nav>li>a:focus {
+    color: #DDDDDD;
+}
+
+a:hover, a:focus {
+    color: hsl(0, 98%, 50%);
+}
+
+a {
+    color: hsl(0, 98%, 36%);
+}
