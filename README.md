@@ -22,6 +22,8 @@ The choice of metric allows you to evaluate different types of gene modules:
 
 **Other Links**
 
+- [bioRxiv Preprint](https://www.biorxiv.org/content/10.1101/2020.02.06.937805v1)
+    - [Associated analysis repo](https://github.com/deto/Hotspot_analysis)
 - [Documentation](https://yoseflab.github.io/Hotspot)
 - [Full Method Reference](https://yoseflab.github.io/Hotspot/hotspot.html)
 

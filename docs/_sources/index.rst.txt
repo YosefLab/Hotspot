@@ -9,7 +9,7 @@ Hotspot
 Hotspot is a tool for identifying informative genes (and gene modules)
 in a single-cell dataset.
 
-`Github Link <https://github.com/YosefLab/Hotspot>`__
+`Github Repo <https://github.com/YosefLab/Hotspot>`__ - `bioRxiv Preprint <https://www.biorxiv.org/content/10.1101/2020.02.06.937805v1>`__
 
 Importantly 'informative' is decided based on how well a gene's
 variation agrees with some cell metric - some similarity mapping between
