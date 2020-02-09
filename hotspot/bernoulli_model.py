@@ -53,6 +53,17 @@ def fit_gene_model_scaled(gene_detects, umi_counts):
     return mu, var, x2
 
 
+def true_params_scaled(gene_p, umi_counts):
+
+    detect_p = 1-(1-gene_p/10000)**umi_counts
+
+    mu = detect_p
+    var = detect_p * (1 - detect_p)
+    x2 = detect_p
+
+    return mu, var, x2
+
+
 def fit_gene_model_linear(gene_detects, umi_counts):
 
     umi_count_bins, bins = pd.qcut(
