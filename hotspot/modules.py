@@ -330,14 +330,15 @@ def compute_modules(Z_scores, min_gene_threshold=10, fdr_threshold=None, z_thres
 
     # Determine Z_Threshold from FDR threshold
 
-    allZ = squareform(  # just in case slightly not symmetric
-        Z_scores.values/2 + Z_scores.values.T/2
-    )
-    allZ = np.sort(allZ)
-    allP = norm.sf(allZ)
-    allP_c = multipletests(allP, method='fdr_bh')[1]
-    ii = np.nonzero(allP_c < fdr_threshold)[0][0]
-    z_threshold = allZ[ii]
+    if z_threshold is None:
+        allZ = squareform(  # just in case slightly not symmetric
+            Z_scores.values/2 + Z_scores.values.T/2
+        )
+        allZ = np.sort(allZ)
+        allP = norm.sf(allZ)
+        allP_c = multipletests(allP, method='fdr_bh')[1]
+        ii = np.nonzero(allP_c < fdr_threshold)[0][0]
+        z_threshold = allZ[ii]
 
     # Compute the linkage matrix
     dd = Z_scores.copy().values
