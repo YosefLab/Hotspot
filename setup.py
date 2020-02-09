@@ -13,7 +13,7 @@ setup(
     packages=find_packages(),
 
     install_requires=[
-        'matplotlib>=3.1.0',
+        'matplotlib>=3.0.0',
         'numba>=0.43.1',
         'numpy>=1.16.4',
         'seaborn>=0.9.0',
