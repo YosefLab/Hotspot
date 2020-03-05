@@ -52,12 +52,6 @@ class Hotspot:
             If omitted, the sum over genes in the counts matrix is used
         """
 
-        self.counts = counts
-        self.latent = latent
-        self.distances = distances
-        self.tree = tree
-        self.model = model
-
         if latent is None and distances is None and tree is None:
             raise ValueError("Neither `latent` or `tree` or `distance` arguments were supplied.  One of these is required")
 
@@ -71,7 +65,10 @@ class Hotspot:
             raise ValueError("Both `distances` and `tree` provided - only one of these should be provided.")
 
         if latent is not None:
-            assert counts.shape[1] == latent.shape[0]
+            if counts.shape[1] != latent.shape[0]:
+                if counts.shape[0] == latent.shape[0]:
+                    raise ValueError("`counts` input should be a Genes x Cells dataframe.  Maybe needs transpose?")
+                raise ValueError("Size mismatch counts/latent. Columns of `counts` should match rows of `latent`.")
 
         if distances is not None:
             assert counts.shape[1] == distances.shape[0]
@@ -105,6 +102,20 @@ class Hotspot:
             raise ValueError(
                 'Input `model` should be one of {}'.format(valid_models)
             )
+
+        valid_genes = counts.var(axis=1) > 0
+        n_invalid = counts.shape[0] - valid_genes.sum()
+        if n_invalid > 0:
+            counts = counts.loc[valid_genes]
+            print(
+                "\nRemoving {} undetected/non-varying genes".format(n_invalid)
+            )
+
+        self.counts = counts
+        self.latent = latent
+        self.distances = distances
+        self.tree = tree
+        self.model = model
 
         self.umi_counts = umi_counts
 

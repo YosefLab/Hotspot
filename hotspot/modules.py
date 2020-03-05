@@ -337,8 +337,11 @@ def compute_modules(Z_scores, min_gene_threshold=10, fdr_threshold=None, z_thres
         allZ = np.sort(allZ)
         allP = norm.sf(allZ)
         allP_c = multipletests(allP, method='fdr_bh')[1]
-        ii = np.nonzero(allP_c < fdr_threshold)[0][0]
-        z_threshold = allZ[ii]
+        ii = np.nonzero(allP_c < fdr_threshold)[0]
+        if ii.size > 0:
+            z_threshold = allZ[ii[0]]
+        else:
+            z_threshold = allZ[-1]+1
 
     # Compute the linkage matrix
     dd = Z_scores.copy().values
