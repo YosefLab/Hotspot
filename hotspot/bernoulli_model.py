@@ -3,6 +3,8 @@ import pandas as pd
 import numpy as np
 from numba import njit
 
+N_BIN_TARGET = 30
+
 
 @jit(nopython=True)
 def find_gene_p(num_umi, D):
@@ -67,7 +69,8 @@ def true_params_scaled(gene_p, umi_counts):
 def fit_gene_model_linear(gene_detects, umi_counts):
 
     umi_count_bins, bins = pd.qcut(
-        np.log10(umi_counts), 30, labels=False, retbins=True, duplicates='drop'
+        np.log10(umi_counts), N_BIN_TARGET, labels=False, retbins=True,
+        duplicates='drop'
     )
     bin_centers = np.array(
         [bins[i] / 2 + bins[i + 1] / 2 for i in range(len(bins) - 1)]
@@ -92,7 +95,9 @@ def fit_gene_model_linear(gene_detects, umi_counts):
 
     return mu, var, x2
 
+
 fit_gene_model = fit_gene_model_linear
+
 
 @njit
 def logit(p):
