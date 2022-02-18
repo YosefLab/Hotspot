@@ -13,8 +13,7 @@ from .knn import (
     make_weights_non_redundant,
 )
 from .local_stats import compute_hs
-from .local_stats_pairs import (
-    compute_hs_pairs, compute_hs_pairs_centered_cond)
+from .local_stats_pairs import compute_hs_pairs, compute_hs_pairs_centered_cond
 
 from . import modules
 from .plots import local_correlation_plot
@@ -22,11 +21,16 @@ from tqdm import tqdm
 
 
 class Hotspot:
-
     def __init__(
-            self, adata, layer_key=None, model='danb',
-            latent_obsm_key=None, distances_obsp_key=None, tree=None,
-            umi_counts_obs_key=None):
+        self,
+        adata,
+        layer_key=None,
+        model="danb",
+        latent_obsm_key=None,
+        distances_obsp_key=None,
+        tree=None,
+        umi_counts_obs_key=None,
+    ):
         """Initialize a Hotspot object for analysis
 
         Either `latent` or `tree` or `distances` is required.
@@ -59,32 +63,48 @@ class Hotspot:
             If omitted, the sum over genes in the counts matrix is used
         """
         counts = self._counts_from_anndata(adata, layer_key)
-        distances = adata.obsp[distances_obsp_key] if distances_obsp_key is not None else None
+        distances = (
+            adata.obsp[distances_obsp_key] if distances_obsp_key is not None else None
+        )
         latent = adata.obsm[latent_obsm_key] if latent_obsm_key is not None else None
-        umi_counts = adata.obs[umi_counts_obs_key] if umi_counts_obs_key is not None else None
+        umi_counts = (
+            adata.obs[umi_counts_obs_key] if umi_counts_obs_key is not None else None
+        )
 
         if latent is None and distances is None and tree is None:
-            raise ValueError("Neither `latent_obsm_key` or `tree` or `distances_obsp_key` arguments were supplied.  One of these is required")
+            raise ValueError(
+                "Neither `latent_obsm_key` or `tree` or `distances_obsp_key` arguments were supplied.  One of these is required"
+            )
 
         if latent is not None and distances is not None:
-            raise ValueError("Both `latent_obsm_key` and `distances_obsp_key` provided - only one of these should be provided.")
+            raise ValueError(
+                "Both `latent_obsm_key` and `distances_obsp_key` provided - only one of these should be provided."
+            )
 
         if latent is not None and tree is not None:
-            raise ValueError("Both `latent_obsm_key` and `tree` provided - only one of these should be provided.")
+            raise ValueError(
+                "Both `latent_obsm_key` and `tree` provided - only one of these should be provided."
+            )
 
         if distances is not None and tree is not None:
-            raise ValueError("Both `distances_obsp_key` and `tree` provided - only one of these should be provided.")
+            raise ValueError(
+                "Both `distances_obsp_key` and `tree` provided - only one of these should be provided."
+            )
 
         if distances is not None:
             assert not issparse(distances)
-            distances = pd.DataFrame(distances, index=adata.obs_names, columns=adata.obs_names)
+            distances = pd.DataFrame(
+                distances, index=adata.obs_names, columns=adata.obs_names
+            )
 
         if latent is not None:
             latent = pd.DataFrame(latent, index=adata.obs_names)
 
         # because of transpose we check if its csr
         if issparse(counts) and not isinstance(counts, csr_matrix):
-            warnings.warn("Hotspot will work faster when counts are a csc sparse matrix.")
+            warnings.warn(
+                "Hotspot will work faster when counts are a csc sparse matrix."
+            )
 
         if tree is not None:
             try:
@@ -95,11 +115,12 @@ class Hotspot:
             except:
                 raise ValueError("Can't parse supplied tree")
 
-            if (
-                len(all_leaves) != counts.shape[1] or
-                len(set(all_leaves) & set(counts.columns)) != len(all_leaves)
-               ):
-                raise ValueError("Tree leaf labels don't match columns in supplied counts matrix")
+            if len(all_leaves) != counts.shape[1] or len(
+                set(all_leaves) & set(counts.columns)
+            ) != len(all_leaves):
+                raise ValueError(
+                    "Tree leaf labels don't match columns in supplied counts matrix"
+                )
 
         if umi_counts is None:
             umi_counts = counts.sum(axis=0)
@@ -109,11 +130,9 @@ class Hotspot:
         if not isinstance(umi_counts, pd.Series):
             umi_counts = pd.Series(umi_counts, index=adata.obs_names)
 
-        valid_models = {'danb', 'bernoulli', 'normal', 'none'}
+        valid_models = {"danb", "bernoulli", "normal", "none"}
         if model not in valid_models:
-            raise ValueError(
-                'Input `model` should be one of {}'.format(valid_models)
-            )
+            raise ValueError("Input `model` should be one of {}".format(valid_models))
 
         valid_genes = counts.sum(axis=1) > 0
         n_invalid = counts.shape[0] - valid_genes.sum()
@@ -150,12 +169,15 @@ class Hotspot:
         if dense:
             counts = counts.A
             if pandas:
-                counts = pd.DataFrame(counts, index=adata.var_names, columns=adata.obs_names)
+                counts = pd.DataFrame(
+                    counts, index=adata.var_names, columns=adata.obs_names
+                )
 
         return counts
 
     def create_knn_graph(
-            self, weighted_graph=False, n_neighbors=30, neighborhood_factor=3):
+        self, weighted_graph=False, n_neighbors=30, neighborhood_factor=3
+    ):
         """Create's the KNN graph and graph weights
 
         The resulting matrices containing the neighbors and weights are
@@ -176,17 +198,25 @@ class Hotspot:
 
         if self.latent is not None:
             neighbors, weights = neighbors_and_weights(
-                self.latent, n_neighbors=n_neighbors,
-                neighborhood_factor=neighborhood_factor)
+                self.latent,
+                n_neighbors=n_neighbors,
+                neighborhood_factor=neighborhood_factor,
+            )
         elif self.tree is not None:
             if weighted_graph:
-                raise ValueError("When using `tree` as the metric space, `weighted_graph=True` is not supported")
+                raise ValueError(
+                    "When using `tree` as the metric space, `weighted_graph=True` is not supported"
+                )
             neighbors, weights = tree_neighbors_and_weights(
-                self.tree, n_neighbors=n_neighbors, counts=self.counts)
+                self.tree, n_neighbors=n_neighbors, counts=self.counts
+            )
         else:
             neighbors, weights = neighbors_and_weights_from_distances(
-                self.distances, cell_index=self.adata.obs_names, n_neighbors=n_neighbors,
-                neighborhood_factor=neighborhood_factor)
+                self.distances,
+                cell_index=self.adata.obs_names,
+                n_neighbors=n_neighbors,
+                neighborhood_factor=neighborhood_factor,
+            )
 
         neighbors = neighbors.loc[self.adata.obs_names]
         weights = weights.loc[self.adata.obs_names]
@@ -196,13 +226,15 @@ class Hotspot:
         if not weighted_graph:
             weights = pd.DataFrame(
                 np.ones_like(weights.values),
-                index=weights.index, columns=weights.columns
+                index=weights.index,
+                columns=weights.columns,
             )
 
         weights = make_weights_non_redundant(neighbors.values, weights.values)
 
         weights = pd.DataFrame(
-            weights, index=neighbors.index, columns=neighbors.columns)
+            weights, index=neighbors.index, columns=neighbors.columns
+        )
 
         self.weights = weights
 
@@ -234,9 +266,15 @@ class Hotspot:
         """
 
         results = compute_hs(
-            self.counts, self.neighbors, self.weights,
-            self.umi_counts, self.model, genes=self.adata.var_names,
-            centered=True, jobs=jobs)
+            self.counts,
+            self.neighbors,
+            self.weights,
+            self.umi_counts,
+            self.model,
+            genes=self.adata.var_names,
+            centered=True,
+            jobs=jobs,
+        )
 
         self.results = results
 
@@ -266,7 +304,6 @@ class Hotspot:
             Gene ids are in the index
 
         """
-        numba.set_num_threads(jobs)
         return self._compute_hotspot(jobs)
 
     def compute_local_correlations(self, genes, jobs=1):
@@ -291,8 +328,7 @@ class Hotspot:
         """
 
         print(
-            "Computing pair-wise local correlation on {} features..."
-            .format(len(genes))
+            "Computing pair-wise local correlation on {} features...".format(len(genes))
         )
         counts_dense = self._counts_from_anndata(
             self.adata[:, genes],
@@ -304,17 +340,20 @@ class Hotspot:
         numba.set_num_threads(jobs)
 
         lc, lcz = compute_hs_pairs_centered_cond(
-            counts_dense, self.neighbors, self.weights,
-            self.umi_counts, self.model, jobs=jobs)
+            counts_dense,
+            self.neighbors,
+            self.weights,
+            self.umi_counts,
+            self.model,
+            jobs=jobs,
+        )
 
         self.local_correlation_c = lc
         self.local_correlation_z = lcz
 
         return self.local_correlation_z
 
-    def create_modules(
-            self, min_gene_threshold=20, core_only=True, fdr_threshold=0.05
-    ):
+    def create_modules(self, min_gene_threshold=20, core_only=True, fdr_threshold=0.05):
         """Groups genes into modules
 
         In addition to being returned, the results of this method are retained
@@ -341,8 +380,10 @@ class Hotspot:
         """
 
         gene_modules, Z = modules.compute_modules(
-            self.local_correlation_z, min_gene_threshold=min_gene_threshold,
-            fdr_threshold=fdr_threshold, core_only=core_only
+            self.local_correlation_z,
+            min_gene_threshold=min_gene_threshold,
+            fdr_threshold=fdr_threshold,
+            core_only=core_only,
         )
 
         self.modules = gene_modules
@@ -364,29 +405,24 @@ class Hotspot:
 
         """
 
-        modules_to_compute = sorted(
-            [x for x in self.modules.unique() if x != -1]
-        )
+        modules_to_compute = sorted([x for x in self.modules.unique() if x != -1])
 
-        print(
-            "Computing scores for {} modules..."
-            .format(len(modules_to_compute))
-        )
+        print("Computing scores for {} modules...".format(len(modules_to_compute)))
 
         module_scores = {}
         for module in tqdm(modules_to_compute):
             module_genes = self.modules.index[self.modules == module]
 
             counts_dense = self._counts_from_anndata(
-                self.adata[:, module_genes],
-                self.layer_key,
-                dense=True
+                self.adata[:, module_genes], self.layer_key, dense=True
             )
 
             scores = modules.compute_scores(
                 counts_dense,
-                self.model, self.umi_counts.values,
-                self.neighbors.values, self.weights.values
+                self.model,
+                self.umi_counts.values,
+                self.neighbors.values,
+                self.weights.values,
             )
 
             module_scores[module] = scores
@@ -399,8 +435,7 @@ class Hotspot:
         return self.module_scores
 
     def plot_local_correlations(
-            self, mod_cmap='tab10', vmin=-8, vmax=8,
-            z_cmap='RdBu_r', yticklabels=False
+        self, mod_cmap="tab10", vmin=-8, vmax=8, z_cmap="RdBu_r", yticklabels=False
     ):
         """Plots a clustergrid of the local correlation values
 
@@ -422,7 +457,12 @@ class Hotspot:
         """
 
         return local_correlation_plot(
-                    self.local_correlation_z, self.modules, self.linkage,
-                    mod_cmap=mod_cmap, vmin=vmin, vmax=vmax,
-                    z_cmap=z_cmap, yticklabels=yticklabels
+            self.local_correlation_z,
+            self.modules,
+            self.linkage,
+            mod_cmap=mod_cmap,
+            vmin=vmin,
+            vmax=vmax,
+            z_cmap=z_cmap,
+            yticklabels=yticklabels,
         )

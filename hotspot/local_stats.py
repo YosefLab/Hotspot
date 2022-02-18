@@ -36,7 +36,7 @@ def local_cov_weights(x, neighbors, weights):
     return out
 
 
-@jit(nopython=True, cache=True)
+@jit(nopython=True)
 def compute_moments_weights_slow(mu, x2, neighbors, weights):
     """
     This version exaustively iterates over all |E|^2 terms
