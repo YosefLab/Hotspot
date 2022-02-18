@@ -15,7 +15,6 @@
 import os
 import sys
 sys.path.insert(0, os.path.abspath('..'))
-import sphinx_bootstrap_theme
 
 
 # -- Project information -----------------------------------------------------
@@ -99,23 +98,16 @@ nbsphinx_execute = "never"
 # The theme to use for HTML and HTML Help pages.  See the documentation for
 # a list of builtin themes.
 #
-html_theme = 'bootstrap'
-html_theme_path = sphinx_bootstrap_theme.get_html_theme_path()
+html_theme = "sphinx-book-theme"
+html_title = "Hotspot"
 
 # Theme options are theme-specific and customize the look and feel of a theme
 # further.  For a list of options available for each theme, see the
 # documentation.
 #
 html_theme_options = {
-    'navbar_site_name': 'Tutorials',
-    'navbar_sidebarrel': False,
-    'source_link_position': 'none',
-    'globaltoc_includehidden': 'false',
-    'navbar_links': [
-        ('API', 'hotspot'),
-    ],
-    'bootswatch_theme': 'flatly',
-    'navbar_pagenav_name': 'This Page',
+    "repository_url": "https://github.com/yoseflab/hotspot",
+    "use_repository_button": True,
 }
 
 # Add any paths that contain custom static files (such as style sheets) here,
