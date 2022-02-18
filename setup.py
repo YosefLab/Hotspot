@@ -21,7 +21,7 @@ setup(
         'pandas>=0.24.0',
         'tqdm>=4.32.2',
         'statsmodels>=0.9.0',
-        'scikit-learn>=0.21.2'
+        'scikit-learn>=0.21.2',
         'anndata>=0.7',
     ],
     extras_require=dict(
