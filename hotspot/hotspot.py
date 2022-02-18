@@ -76,8 +76,6 @@ class Hotspot:
             raise ValueError("Both `distances_obsp_key` and `tree` provided - only one of these should be provided.")
 
         if distances is not None:
-            assert counts.shape[1] == distances.shape[0]
-            assert counts.shape[1] == distances.shape[1]
             assert not issparse(distances)
             distances = pd.DataFrame(distances, index=adata.obs_names, columns=adata.obs_names)
 
