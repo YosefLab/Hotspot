@@ -2,6 +2,7 @@ import numpy as np
 import pandas as pd
 from hotspot import sim_data
 from hotspot import Hotspot
+import anndata
 
 
 def test_models():
@@ -30,9 +31,13 @@ def test_models():
         columns=latent.index
     )
 
+    adata = anndata.AnnData(gene_exp.transpose())
+    adata.obsm["latent"] = latent.values
+    adata.obs["umi_counts"] = umi_counts.values
+
     for model in ['danb', 'bernoulli', 'normal', 'none']:
         hs = Hotspot(
-            gene_exp, model=model, latent=latent, umi_counts=umi_counts
+            adata, model=model, latent_obsm_key="latent", umi_counts_obs_key="umi_counts"
         )
         hs.create_knn_graph(False, n_neighbors=30)
         hs.compute_hotspot()
@@ -89,8 +94,12 @@ def test_filter_genes():
         columns=latent.index
     )
 
+    adata = anndata.AnnData(gene_exp.transpose())
+    adata.obsm["latent"] = latent.values
+    adata.obs["umi_counts"] = umi_counts.values
+
     hs = Hotspot(
-        gene_exp, model='normal', latent=latent, umi_counts=umi_counts
+        adata, model='normal', latent_obsm_key="latent", umi_counts_obs_key="umi_counts"
     )
 
     assert hs.counts.shape[0] == N_GENES

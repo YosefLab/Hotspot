@@ -1,5 +1,8 @@
+import anndata
 import numpy as np
 import pandas as pd
+
+from scipy.sparse import issparse
 
 from .knn import (
     neighbors_and_weights,
@@ -19,17 +22,19 @@ from tqdm import tqdm
 class Hotspot:
 
     def __init__(
-            self, counts, model='danb',
-            latent=None, distances=None, tree=None,
-            umi_counts=None):
+            self, adata, layer_key=None, model='danb',
+            latent_obsm_key=None, distances_obsp_key=None, tree=None,
+            umi_counts_obs_key=None):
         """Initialize a Hotspot object for analysis
 
         Either `latent` or `tree` or `distances` is required.
 
         Parameters
         ----------
-        counts : pandas.DataFrame
-            Count matrix (shape is genes x cells)
+        adata : anndata.AnnData
+            Count matrix (shape is cells by genes)
+        layer_key: str
+            Key in adata.layers with count data, uses adata.X if None.
         model : string, optional
             Specifies the null model to use for gene expression.
             Valid choices are:
@@ -39,40 +44,45 @@ class Hotspot:
                 - 'normal': Depth-Adjusted Normal
                 - 'none': Assumes data has been pre-standardized
 
-        latent : pandas.DataFrame, optional
+        latent_obsm_key : string, optional
             Latent space encoding cell-cell similarities with euclidean
-            distances.  Shape is (cells x dims)
-        distances : pandas.DataFrame, optional
+            distances.  Shape is (cells x dims). Input is key in adata.obsm
+        distances_obsp_key : pandas.DataFrame, optional
             Distances encoding cell-cell similarities directly
-            Shape is (cells x cells)
+            Shape is (cells x cells). Input is key in adata.obsp
         tree : ete3.coretype.tree.TreeNode
             Root tree node.  Can be created using ete3.Tree
-        umi_counts : pandas.Series, optional
+        umi_counts_obs_key : str
             Total umi count per cell.  Used as a size factor.
             If omitted, the sum over genes in the counts matrix is used
         """
 
+        counts = adata.to_df(layer_key) if layer_key is not None else adata.to_df()
+        counts = counts.transpose()
+        distances = adata.obsp[distances_obsp_key] if distances_obsp_key is not None else None
+        latent = adata.obsm[latent_obsm_key] if latent_obsm_key is not None else None
+        umi_counts = adata.obs[umi_counts_obs_key] if umi_counts_obs_key is not None else None
+
         if latent is None and distances is None and tree is None:
-            raise ValueError("Neither `latent` or `tree` or `distance` arguments were supplied.  One of these is required")
+            raise ValueError("Neither `latent_obsm_key` or `tree` or `distances_obsp_key` arguments were supplied.  One of these is required")
 
         if latent is not None and distances is not None:
-            raise ValueError("Both `latent` and `distances` provided - only one of these should be provided.")
+            raise ValueError("Both `latent_obsm_key` and `distances_obsp_key` provided - only one of these should be provided.")
 
         if latent is not None and tree is not None:
-            raise ValueError("Both `latent` and `tree` provided - only one of these should be provided.")
+            raise ValueError("Both `latent_obsm_key` and `tree` provided - only one of these should be provided.")
 
         if distances is not None and tree is not None:
-            raise ValueError("Both `distances` and `tree` provided - only one of these should be provided.")
-
-        if latent is not None:
-            if counts.shape[1] != latent.shape[0]:
-                if counts.shape[0] == latent.shape[0]:
-                    raise ValueError("`counts` input should be a Genes x Cells dataframe.  Maybe needs transpose?")
-                raise ValueError("Size mismatch counts/latent. Columns of `counts` should match rows of `latent`.")
+            raise ValueError("Both `distances_obsp_key` and `tree` provided - only one of these should be provided.")
 
         if distances is not None:
             assert counts.shape[1] == distances.shape[0]
             assert counts.shape[1] == distances.shape[1]
+            assert not issparse(distances)
+            distances = pd.DataFrame(distances, index=adata.obs_names, columns=adata.obs_names)
+
+        if latent is not None:
+            latent = pd.DataFrame(latent, index=adata.obs_names)
 
         if tree is not None:
             try:
@@ -95,7 +105,7 @@ class Hotspot:
             assert umi_counts.size == counts.shape[1]
 
         if not isinstance(umi_counts, pd.Series):
-            umi_counts = pd.Series(umi_counts)
+            umi_counts = pd.Series(umi_counts, index=adata.obs_names)
 
         valid_models = {'danb', 'bernoulli', 'normal', 'none'}
         if model not in valid_models:
@@ -111,6 +121,7 @@ class Hotspot:
                 "\nRemoving {} undetected/non-varying genes".format(n_invalid)
             )
 
+        self.adata = adata
         self.counts = counts
         self.latent = latent
         self.distances = distances
@@ -156,7 +167,7 @@ class Hotspot:
                 self.tree, n_neighbors=n_neighbors, counts=self.counts)
         else:
             neighbors, weights = neighbors_and_weights_from_distances(
-                self.distances, n_neighbors=n_neighbors,
+                self.distances, cell_index=self.adata.obs_names, n_neighbors=n_neighbors,
                 neighborhood_factor=neighborhood_factor)
 
         neighbors = neighbors.loc[self.counts.columns]
