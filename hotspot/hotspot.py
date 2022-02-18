@@ -2,6 +2,8 @@ import numpy as np
 import pandas as pd
 import warnings
 
+import numba
+
 from scipy.sparse import issparse, csr_matrix
 
 from .knn import (
@@ -297,6 +299,8 @@ class Hotspot:
             dense=True,
             pandas=True,
         )
+
+        numba.set_num_threads(jobs)
 
         lc, lcz = compute_hs_pairs_centered_cond(
             counts_dense, self.neighbors, self.weights,

@@ -1,5 +1,5 @@
 import numpy as np
-from numba import jit, njit
+from numba import jit, njit, prange
 from tqdm import tqdm
 import pandas as pd
 import multiprocessing
@@ -14,7 +14,7 @@ from .knn import compute_node_degree
 from .utils import center_values
 
 
-@jit(nopython=True)
+@jit(nopython=True, parallel=True, cache=True)
 def conditional_eg2(counts, neighbors, weights):
     """
     Computes EG2 for the conditional correlation
@@ -26,7 +26,7 @@ def conditional_eg2(counts, neighbors, weights):
     out = [0.0] * G
     t1x = np.zeros(N)
 
-    for g in range(G):
+    for g in prange(G):
         x = counts[g]
         for i in range(N):
             for k in range(K):
@@ -103,7 +103,7 @@ def conditional_eg2_slow(x, neighbors, weights):
     return node_totals.sum() - node_totals_diag.sum() + dup
 
 
-@jit(nopython=True)
+@jit(nopython=True, cache=True)
 def local_cov_pair(x, y, neighbors, weights):
     """Test statistic for local pair-wise autocorrelation"""
     out = 0
@@ -125,7 +125,7 @@ def local_cov_pair(x, y, neighbors, weights):
     return out
 
 
-@jit(nopython=True)
+@jit(nopython=True, cache=True)
 def compute_moments_weights_pairs_slow(muA, a2, muB, b2, neighbors, weights):
     """
     This version exaustively iterates over all |E|^2 terms
@@ -225,7 +225,7 @@ def compute_moments_weights_pairs_slow(muA, a2, muB, b2, neighbors, weights):
     return EG, EG2
 
 
-@jit(nopython=True)
+@jit(nopython=True, cache=True)
 def compute_moments_weights_pairs(
         muX, x2,
         muY, y2,
@@ -297,7 +297,7 @@ def compute_moments_weights_pairs(
     return EG, EG2
 
 
-@jit(nopython=True)
+@jit(nopython=True, cache=True)
 def compute_moments_weights_pairs_fast(
         muX, x2,
         muY, y2,
@@ -367,7 +367,7 @@ def compute_moments_weights_pairs_fast(
     return EG, EG2
 
 
-@jit(nopython=True)
+@jit(nopython=True, cache=True)
 def compute_moments_weights_pairs_std(neighbors, weights):
     """
     Computes the expectations of the local pair-wise test statistic
@@ -548,7 +548,7 @@ def _compute_hs_pairs_inner_centered(
     return (lc, Z)
 
 
-@jit(nopython=True)
+@jit(nopython=True, cache=True, parallel=True)
 def _compute_hs_pairs_inner_centered_cond_sym(
     rowpair, counts, neighbors, weights, eg2s
 ):
@@ -830,7 +830,7 @@ def _map_fun_parallel_pairs_centered_cond(rowpair):
     )
 
 
-@njit
+@jit(nopython=True, cache=True)
 def expand_pairs(pairs, vals, N):
 
     out = np.zeros((N, N))
