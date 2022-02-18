@@ -3,6 +3,7 @@ from numba import jit
 from tqdm import tqdm
 import pandas as pd
 from scipy.stats import norm
+from scipy.sparse import issparse
 from statsmodels.stats.multitest import multipletests
 import multiprocessing
 
@@ -164,11 +165,8 @@ def compute_local_cov_max(node_degrees, vals):
 
 
 def compute_hs(counts, neighbors, weights, num_umi,
-               model, centered=False, jobs=1):
+               model, genes, centered=False, jobs=1):
 
-    genes = counts.index
-
-    counts = counts.values
     neighbors = neighbors.values
     weights = weights.values
     num_umi = num_umi.values
@@ -178,7 +176,10 @@ def compute_hs(counts, neighbors, weights, num_umi,
 
     def data_iter():
         for i in range(counts.shape[0]):
-            vals = counts[i].astype('double')
+            vals = counts[i]
+            if issparse(vals):
+                vals = np.asarray(vals.A).ravel()
+            vals = vals.astype('double')
             yield vals
 
     def initializer():

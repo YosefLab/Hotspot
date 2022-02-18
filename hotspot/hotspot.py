@@ -1,8 +1,9 @@
 import anndata
 import numpy as np
 import pandas as pd
+import warnings
 
-from scipy.sparse import issparse
+from scipy.sparse import issparse, csc_matrix
 
 from .knn import (
     neighbors_and_weights,
@@ -56,9 +57,7 @@ class Hotspot:
             Total umi count per cell.  Used as a size factor.
             If omitted, the sum over genes in the counts matrix is used
         """
-
-        counts = adata.to_df(layer_key) if layer_key is not None else adata.to_df()
-        counts = counts.transpose()
+        counts = self._counts_from_anndata(adata, layer_key)
         distances = adata.obsp[distances_obsp_key] if distances_obsp_key is not None else None
         latent = adata.obsm[latent_obsm_key] if latent_obsm_key is not None else None
         umi_counts = adata.obs[umi_counts_obs_key] if umi_counts_obs_key is not None else None
@@ -81,6 +80,9 @@ class Hotspot:
 
         if latent is not None:
             latent = pd.DataFrame(latent, index=adata.obs_names)
+
+        if issparse(counts) and not isinstance(counts, csc_matrix):
+            warnings.warn("Hotspot will work faster when counts are a csc sparse matrix.")
 
         if tree is not None:
             try:
@@ -111,15 +113,16 @@ class Hotspot:
                 'Input `model` should be one of {}'.format(valid_models)
             )
 
-        valid_genes = counts.var(axis=1) > 0
+        valid_genes = counts.sum(axis=1) > 0
         n_invalid = counts.shape[0] - valid_genes.sum()
         if n_invalid > 0:
-            counts = counts.loc[valid_genes]
-            print(
-                "\nRemoving {} undetected/non-varying genes".format(n_invalid)
+            raise ValueError(
+                "\nDetected all zero genes. Please filter adata and reinitialize."
             )
 
         self.adata = adata
+        self.layer_key = layer_key
+
         self.counts = counts
         self.latent = latent
         self.distances = distances
@@ -133,6 +136,21 @@ class Hotspot:
         self.local_correlation_z = None
         self.linkage = None
         self.module_scores = None
+
+    @staticmethod
+    def _counts_from_anndata(adata, layer_key, dense=False, pandas=False):
+        counts = adata.layers[layer_key] if layer_key is not None else adata.X
+        # handles adata view
+        if not issparse(counts):
+            counts = np.asarray(counts)
+        counts = counts.transpose()
+
+        if dense:
+            counts = counts.A
+            if pandas:
+                counts = pd.DataFrame(counts, index=adata.var_names, columns=adata.obs_names)
+
+        return counts
 
     def create_knn_graph(
             self, weighted_graph=False, n_neighbors=30, neighborhood_factor=3):
@@ -168,8 +186,8 @@ class Hotspot:
                 self.distances, cell_index=self.adata.obs_names, n_neighbors=n_neighbors,
                 neighborhood_factor=neighborhood_factor)
 
-        neighbors = neighbors.loc[self.counts.columns]
-        weights = weights.loc[self.counts.columns]
+        neighbors = neighbors.loc[self.adata.obs_names]
+        weights = weights.loc[self.adata.obs_names]
 
         self.neighbors = neighbors
 
@@ -186,7 +204,7 @@ class Hotspot:
 
         self.weights = weights
 
-    def compute_hotspot(self, jobs=1):
+    def _compute_hotspot(self, jobs=1):
         """Perform feature selection using local autocorrelation
 
         In addition to returning output, this also stores the output
@@ -215,7 +233,8 @@ class Hotspot:
 
         results = compute_hs(
             self.counts, self.neighbors, self.weights,
-            self.umi_counts, self.model, centered=True, jobs=jobs)
+            self.umi_counts, self.model, genes=self.adata.var_names,
+            centered=True, jobs=jobs)
 
         self.results = results
 
@@ -245,7 +264,7 @@ class Hotspot:
             Gene ids are in the index
 
         """
-        return self.compute_hotspot(jobs)
+        return self._compute_hotspot(jobs)
 
     def compute_local_correlations(self, genes, jobs=1):
         """Define gene-gene relationships with pair-wise local correlations
@@ -272,9 +291,15 @@ class Hotspot:
             "Computing pair-wise local correlation on {} features..."
             .format(len(genes))
         )
+        counts_dense = self._counts_from_anndata(
+            self.adata[:, genes],
+            self.layer_key,
+            dense=True,
+            pandas=True,
+        )
 
         lc, lcz = compute_hs_pairs_centered_cond(
-            self.counts.loc[genes], self.neighbors, self.weights,
+            counts_dense, self.neighbors, self.weights,
             self.umi_counts, self.model, jobs=jobs)
 
         self.local_correlation_c = lc
@@ -347,8 +372,14 @@ class Hotspot:
         for module in tqdm(modules_to_compute):
             module_genes = self.modules.index[self.modules == module]
 
+            counts_dense = self._counts_from_anndata(
+                self.adata[:, module_genes],
+                self.layer_key,
+                dense=True
+            )
+
             scores = modules.compute_scores(
-                self.counts.loc[module_genes].values,
+                counts_dense,
                 self.model, self.umi_counts.values,
                 self.neighbors.values, self.weights.values
             )
@@ -356,7 +387,7 @@ class Hotspot:
             module_scores[module] = scores
 
         module_scores = pd.DataFrame(module_scores)
-        module_scores.index = self.counts.columns
+        module_scores.index = self.adata.obs_names
 
         self.module_scores = module_scores
 
