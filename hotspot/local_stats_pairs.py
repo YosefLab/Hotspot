@@ -123,7 +123,10 @@ def local_cov_pair(x, y, neighbors, weights):
             yi = y[i]
             yj = y[j]
 
-            out += w_ij * (xi * yj + yi * xj) / 2
+            if w_ij == 0 or xi == 0 or xj == 0 or yi == 0 or yj == 0:
+                out += 0
+            else:
+                out += w_ij * (xi * yj + yi * xj) / 2
 
     return out
 
@@ -728,7 +731,7 @@ def compute_hs_pairs_centered_cond(counts, neighbors, weights, num_umi, model, j
     D = compute_node_degree(neighbors, weights)
 
     counts = create_centered_counts(counts, model, num_umi)
-    with ProgressBar(total=len(pairs)) as progress:
+    with ProgressBar(total=counts.shape[0]) as progress:
         egs2 = conditional_eg2(counts, neighbors, weights, progress)
     eg2s = np.asarray(egs2)
 
@@ -799,14 +802,14 @@ def _map_fun_parallel_pairs_centered_cond(
     pairs, counts, neighbors, weights, eg2s, progress
 ):
 
-    outs = np.zeros((len(pairs, 2)))
+    outs = np.zeros((len(pairs), 2))
     for i in prange(len(pairs)):
         rowpair = pairs[i]
         a, b = _compute_hs_pairs_inner_centered_cond_sym(
             rowpair, counts, neighbors, weights, eg2s
         )
-        outs[i][0] += a
-        outs[i][1] += b
+        outs[i, 0] += a
+        outs[i, 1] += b
         progress.update(1)
     return outs
 
