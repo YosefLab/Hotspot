@@ -91,7 +91,7 @@ language = None
 exclude_patterns = []
 
 # The name of the Pygments (syntax highlighting) style to use.
-pygments_style = None
+pygments_style = "default"
 
 
 # -- Options for HTML output -------------------------------------------------
@@ -126,6 +126,28 @@ html_static_path = ['_static']
 html_css_files = [
     'my-styles.css'
 ]
+
+
+nbsphinx_prolog = r"""
+.. raw:: html
+
+{{% set docname = env.doc2path(env.docname, base=None).split("/")[-1] %}}
+
+.. raw:: html
+
+    <div class="admonition note">
+        <p class="admonition-title">Note</p>
+        <p>
+        This page was generated from
+        <a class="reference external" href="https://github.com/yoseflab/hotspot/docs/source/">{docname}</a>.
+        Interactive online version:
+        <span style="white-space: nowrap;"><a href="https://colab.research.google.com/github/yoseflab/hotspot/blob/master/{docname}"><img alt="Colab badge" src="https://colab.research.google.com/assets/colab-badge.svg" style="vertical-align:text-bottom"></a>.</span>
+        Some tutorial content may look better in light mode.
+        </p>
+    </div>
+""".format(
+    version=version, docname="{{ docname|e }}"
+)
 
 
 # Custom sidebar templates, must be a dictionary that maps document names
