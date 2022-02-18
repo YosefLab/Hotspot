@@ -48,7 +48,6 @@ def test_models():
         )
         hs.create_knn_graph(False, n_neighbors=30)
         hs.compute_autocorrelations(jobs=1)
-        hs.compute_autocorrelations(jobs=2)
 
         assert isinstance(hs.results, pd.DataFrame)
         assert hs.results.shape[0] == N_GENES

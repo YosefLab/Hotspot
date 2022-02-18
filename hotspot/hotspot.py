@@ -345,7 +345,6 @@ class Hotspot:
             self.weights,
             self.umi_counts,
             self.model,
-            jobs=jobs,
         )
 
         self.local_correlation_c = lc
