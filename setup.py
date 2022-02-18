@@ -25,6 +25,7 @@ setup(
     ],
     extras_require=dict(
         test=['pytest>=5.0.0'],
+        docs=["sphinx_bootstrap_theme", "nbsphinx", "sphinx"]
     ),
 
     include_package_data=True,
