@@ -15,29 +15,33 @@ from .utils import center_values
 
 
 @jit(nopython=True)
-def conditional_eg2(x, neighbors, weights):
+def conditional_eg2(counts, neighbors, weights):
     """
     Computes EG2 for the conditional correlation
     """
+    G = counts.shape[0]
     N = neighbors.shape[0]
     K = neighbors.shape[1]
 
+    out = [0.0] * G
     t1x = np.zeros(N)
 
-    for i in range(N):
-        for k in range(K):
-            j = neighbors[i, k]
+    for g in range(G):
+        x = counts[g]
+        for i in range(N):
+            for k in range(K):
+                j = neighbors[i, k]
 
-            wij = weights[i, k]
-            if wij == 0:
-                continue
+                wij = weights[i, k]
+                if wij == 0:
+                    continue
 
-            t1x[i] += wij*x[j]
-            t1x[j] += wij*x[i]
+                t1x[i] += wij*x[j]
+                t1x[j] += wij*x[i]
 
-    out_eg2 = (t1x**2).sum()
+        out[g] += (t1x**2).sum()
 
-    return out_eg2
+    return out
 
 
 def conditional_eg2_slow(x, neighbors, weights):
@@ -738,12 +742,7 @@ def compute_hs_pairs_centered_cond(counts, neighbors, weights,
 
     counts = create_centered_counts(counts, model, num_umi)
 
-    eg2s = np.array(
-        [
-            conditional_eg2(counts[i], neighbors, weights)
-            for i in range(counts.shape[0])
-        ]
-    )
+    eg2s = np.asarray(conditional_eg2(counts, neighbors, weights))
 
     def initializer():
         global g_neighbors
