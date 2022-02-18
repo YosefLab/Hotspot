@@ -20,8 +20,7 @@ def test_models():
 
     latent = sim_data.sim_latent(N_CELLS, N_DIM)
     latent = pd.DataFrame(
-        latent,
-        index=['Cell{}'.format(i+1) for i in range(N_CELLS)]
+        latent, index=["Cell{}".format(i + 1) for i in range(N_CELLS)]
     )
 
     umi_counts = sim_data.sim_umi_counts(N_CELLS, 2000, 200)
@@ -30,8 +29,8 @@ def test_models():
     gene_exp = np.random.rand(N_GENES, N_CELLS)
     gene_exp = pd.DataFrame(
         gene_exp,
-        index=['Gene{}'.format(i+1) for i in range(gene_exp.shape[0])],
-        columns=latent.index
+        index=["Gene{}".format(i + 1) for i in range(gene_exp.shape[0])],
+        columns=latent.index,
     )
 
     adata = anndata.AnnData(gene_exp.transpose())
@@ -39,7 +38,7 @@ def test_models():
     adata.obsm["latent"] = latent.values
     adata.obs["umi_counts"] = umi_counts.values
 
-    for model in ['danb', 'bernoulli', 'normal', 'none']:
+    for model in ["danb", "bernoulli", "normal", "none"]:
         hs = Hotspot(
             adata,
             model=model,
@@ -49,6 +48,7 @@ def test_models():
         )
         hs.create_knn_graph(False, n_neighbors=30)
         hs.compute_autocorrelations(jobs=1)
+        hs.compute_autocorrelations(jobs=2)
 
         assert isinstance(hs.results, pd.DataFrame)
         assert hs.results.shape[0] == N_GENES
@@ -66,7 +66,7 @@ def test_models():
         assert (hs.modules.index & gene_exp.index).size == N_GENES
 
         assert isinstance(hs.linkage, np.ndarray)
-        assert hs.linkage.shape == (N_GENES-1, 4)
+        assert hs.linkage.shape == (N_GENES - 1, 4)
 
         hs.calculate_module_scores()
 
@@ -90,12 +90,12 @@ def test_filter_genes():
     umi_counts = sim_data.sim_umi_counts(N_CELLS, 2000, 200)
     umi_counts = pd.Series(umi_counts)
 
-    gene_exp = np.random.rand(N_GENES+N_GENES_ZERO, N_CELLS)
+    gene_exp = np.random.rand(N_GENES + N_GENES_ZERO, N_CELLS)
     gene_exp[N_GENES:] = 0
     gene_exp = pd.DataFrame(
         gene_exp,
-        index=['Gene{}'.format(i+1) for i in range(gene_exp.shape[0])],
-        columns=latent.index
+        index=["Gene{}".format(i + 1) for i in range(gene_exp.shape[0])],
+        columns=latent.index,
     )
 
     adata = anndata.AnnData(gene_exp.transpose())
@@ -104,5 +104,8 @@ def test_filter_genes():
 
     with pytest.raises(ValueError):
         hs = Hotspot(
-            adata, model='normal', latent_obsm_key="latent", umi_counts_obs_key="umi_counts"
+            adata,
+            model="normal",
+            latent_obsm_key="latent",
+            umi_counts_obs_key="umi_counts",
         )

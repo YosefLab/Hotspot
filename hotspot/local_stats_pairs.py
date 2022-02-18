@@ -719,7 +719,7 @@ def compute_hs_pairs_centered(counts, neighbors, weights, num_umi, model, jobs=1
     return lcs, lc_zs
 
 
-def compute_hs_pairs_centered_cond(counts, neighbors, weights, num_umi, model, jobs=1):
+def compute_hs_pairs_centered_cond(counts, neighbors, weights, num_umi, model):
 
     genes = counts.index
 
@@ -735,7 +735,7 @@ def compute_hs_pairs_centered_cond(counts, neighbors, weights, num_umi, model, j
         egs2 = conditional_eg2(counts, neighbors, weights, progress)
     eg2s = np.asarray(egs2)
 
-    pairs = list(itertools.combinations(range(counts.shape[0]), 2))
+    pairs = np.asarray(list(itertools.combinations(range(counts.shape[0]), 2)))
     with ProgressBar(total=len(pairs)) as progress:
         results = _map_fun_parallel_pairs_centered_cond(
             pairs,

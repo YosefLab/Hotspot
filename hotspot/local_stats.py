@@ -16,7 +16,7 @@ from .knn import compute_node_degree
 from .utils import center_values
 
 
-@jit(nopython=True, parallel=True, cache=True)
+@jit(nopython=True)
 def local_cov_weights(x, neighbors, weights):
     out = 0
 
@@ -101,7 +101,7 @@ def compute_moments_weights_slow(mu, x2, neighbors, weights):
     return EG, EG2
 
 
-@jit(nopython=True, parallel=True, cache=True)
+@jit(nopython=True)
 def compute_moments_weights(mu, x2, neighbors, weights):
 
     N = neighbors.shape[0]
@@ -139,7 +139,7 @@ def compute_moments_weights(mu, x2, neighbors, weights):
 
     t1 = t1**2
 
-    for i in range(N):
+    for i in prange(N):
         EG2 += (x2[i] - mu[i] ** 2) * (t1[i] - t2[i])
 
     #  Get the x^2*y^2 terms
@@ -156,12 +156,12 @@ def compute_moments_weights(mu, x2, neighbors, weights):
     return EG, EG2
 
 
-@jit(nopython=True, parallel=True, cache=True)
+@jit(nopython=True)
 def compute_local_cov_max(node_degrees, vals):
     tot = 0.0
 
     for i in prange(node_degrees.size):
-        tot += node_degrees[i]*(vals[i]**2)
+        tot += node_degrees[i] * (vals[i] ** 2)
 
     return tot / 2
 
