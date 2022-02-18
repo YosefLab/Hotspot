@@ -1,5 +1,4 @@
-[![Build status](https://travis-ci.org/YosefLab/Hotspot.svg?branch=master)](https://travis-ci.org/YosefLab/Hotspot)
-
+![Build Status](https://github.com/YosefLab/hotspot/workflows/hotspot/badge.svg)
 # Hotspot
 
 Hotspot is a tool for identifying informative genes (and gene modules) in a single-cell dataset.
@@ -187,7 +186,7 @@ Correlation modules can be visualized by running `hs.plot_local_correlations()`:
 
 ## Compute summary per-cell module scores
 
-Finally, summary per-cell scores can be computed for a module.  This is useful for visualizng the general pattern of expression for genes in a module.  
+Finally, summary per-cell scores can be computed for a module.  This is useful for visualizng the general pattern of expression for genes in a module.
 
 ```
 module_scores = hs.calculate_module_scores()
