@@ -11,29 +11,27 @@ setup(
     name="hotspot",
     version=__version__,
     packages=find_packages(),
-
     install_requires=[
-        'matplotlib>=3.0.0',
-        'numba>=0.43.1',
-        'numpy>=1.16.4',
-        'seaborn>=0.9.0',
-        'scipy>=1.2.1',
-        'pandas>=0.24.0',
-        'tqdm>=4.32.2',
-        'statsmodels>=0.9.0',
-        'scikit-learn>=0.21.2',
-        'anndata>=0.7',
+        "matplotlib>=3.0.0",
+        "numba>=0.43.1",
+        "numpy>=1.16.4",
+        "seaborn>=0.9.0",
+        "scipy>=1.2.1",
+        "pandas>=0.24.0",
+        "tqdm>=4.32.2",
+        "statsmodels>=0.9.0",
+        "scikit-learn>=0.21.2",
+        "anndata>=0.7",
+        "numba-progress",
     ],
     extras_require=dict(
-        test=['pytest>=5.0.0'],
+        test=["pytest>=5.0.0"],
     ),
-
     include_package_data=True,
-
     author="David DeTomaso",
     author_email="David.DeTomaso@berkeley.edu",
     description="",
     keywords="",
     url="",
-    license=""
+    license="",
 )
