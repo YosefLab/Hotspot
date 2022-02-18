@@ -54,6 +54,7 @@ def test_models():
         assert hs.results.shape[0] == N_GENES
 
         hs.compute_local_correlations(gene_exp.index, jobs=1)
+        hs.compute_local_correlations(gene_exp.index, jobs=2)
 
         assert isinstance(hs.local_correlation_z, pd.DataFrame)
         assert hs.local_correlation_z.shape[0] == N_GENES

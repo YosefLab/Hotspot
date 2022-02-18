@@ -744,39 +744,8 @@ def compute_hs_pairs_centered_cond(counts, neighbors, weights,
 
     eg2s = np.asarray(conditional_eg2(counts, neighbors, weights))
 
-    def initializer():
-        global g_neighbors
-        global g_weights
-        global g_counts
-        global g_eg2s
-        g_counts = counts
-        g_neighbors = neighbors
-        g_weights = weights
-        g_eg2s = eg2s
-
     pairs = list(itertools.combinations(range(counts.shape[0]), 2))
-
-    if jobs > 1:
-
-        with multiprocessing.Pool(
-                processes=jobs, initializer=initializer) as pool:
-
-            results = list(
-                tqdm(
-                    pool.imap(_map_fun_parallel_pairs_centered_cond, pairs),
-                    total=len(pairs)
-                )
-            )
-    else:
-        def _map_fun(rowpair):
-            return _compute_hs_pairs_inner_centered_cond_sym(
-                rowpair, counts, neighbors, weights, eg2s)
-        results = list(
-            tqdm(
-                map(_map_fun, pairs),
-                total=len(pairs)
-            )
-        )
+    results = _map_fun_parallel_pairs_centered_cond(pairs, counts, neighbors, weights, eg2s)
 
     N = counts.shape[0]
     pairs = np.array(pairs)
@@ -820,14 +789,19 @@ def _map_fun_parallel_pairs_centered(rowpair):
         rowpair, g_counts, g_neighbors, g_weights, g_Wtot2, g_D)
 
 
-def _map_fun_parallel_pairs_centered_cond(rowpair):
-    global g_neighbors
-    global g_weights
-    global g_counts
-    global g_eg2s
-    return _compute_hs_pairs_inner_centered_cond_sym(
-        rowpair, g_counts, g_neighbors, g_weights, g_eg2s
-    )
+@jit(nopython=True, parallel=True, cache=True)
+def _map_fun_parallel_pairs_centered_cond(pairs, counts, neighbors, weights, eg2s):
+
+    outs = [[0.0, 0.0]] * len(pairs)
+    for i in prange(len(pairs)):
+        rowpair = pairs[i]
+        a, b = _compute_hs_pairs_inner_centered_cond_sym(
+            rowpair, counts, neighbors, weights, eg2s
+        )
+        outs[i][0] += a
+        outs[i][1] += b
+    return outs
+
 
 
 @jit(nopython=True, cache=True)
