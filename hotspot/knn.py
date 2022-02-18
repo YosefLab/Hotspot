@@ -7,7 +7,7 @@ from tqdm import tqdm
 from pynndescent import NNDescent
 
 
-def neighbors_and_weights(data, n_neighbors=30, neighborhood_factor=3):
+def neighbors_and_weights(data, n_neighbors=30, neighborhood_factor=3, approx_neighbors=True):
     """
     Computes nearest neighbors and associated weights for data
     Uses euclidean distance between rows of `data`
@@ -24,9 +24,15 @@ def neighbors_and_weights(data, n_neighbors=30, neighborhood_factor=3):
     """
 
     coords = data.values
-    index = NNDescent(coords, n_neighbors=n_neighbors)
-    index.prepare()
-    ind, dist = index.neighbor_graph
+
+    if approx_neighbors:
+        index = NNDescent(coords, n_neighbors=n_neighbors)
+        index.prepare()
+        ind, dist = index.neighbor_graph
+    else:
+        nbrs = NearestNeighbors(n_neighbors=n_neighbors,
+                        algorithm="ball_tree").fit(coords)
+        dist, ind = nbrs.kneighbors()
 
     weights = compute_weights(
         dist, neighborhood_factor=neighborhood_factor)
