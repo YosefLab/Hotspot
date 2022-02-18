@@ -98,7 +98,7 @@ nbsphinx_execute = "never"
 # The theme to use for HTML and HTML Help pages.  See the documentation for
 # a list of builtin themes.
 #
-html_theme = "sphinx-book-theme"
+html_theme = "sphinx_book_theme"
 html_title = "Hotspot"
 
 # Theme options are theme-specific and customize the look and feel of a theme
@@ -115,9 +115,7 @@ html_theme_options = {
 # so a file named "default.css" will overwrite the builtin "default.css".
 html_static_path = ['_static']
 
-html_css_files = [
-    'my-styles.css'
-]
+html_css_files = []
 
 
 nbsphinx_prolog = r"""
