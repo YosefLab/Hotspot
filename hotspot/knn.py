@@ -4,6 +4,7 @@ import pandas as pd
 from math import ceil
 from numba import jit
 from tqdm import tqdm
+from pynndescent import NNDescent
 
 
 def neighbors_and_weights(data, n_neighbors=30, neighborhood_factor=3):
@@ -23,9 +24,9 @@ def neighbors_and_weights(data, n_neighbors=30, neighborhood_factor=3):
     """
 
     coords = data.values
-    nbrs = NearestNeighbors(n_neighbors=n_neighbors,
-                            algorithm="ball_tree").fit(coords)
-    dist, ind = nbrs.kneighbors()
+    index = NNDescent(coords, n_neighbors=n_neighbors)
+    index.prepare()
+    ind, dist = index.neighbor_graph
 
     weights = compute_weights(
         dist, neighborhood_factor=neighborhood_factor)
