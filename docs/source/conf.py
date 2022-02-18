@@ -141,7 +141,7 @@ nbsphinx_prolog = r"""
         This page was generated from
         <a class="reference external" href="https://github.com/yoseflab/hotspot/tree/master/docs/source/">{docname}</a>.
         Interactive online version:
-        <span style="white-space: nowrap;"><a href="https://colab.research.google.com/github/yoseflab/hotspot/blob/master/{docname}"><img alt="Colab badge" src="https://colab.research.google.com/assets/colab-badge.svg" style="vertical-align:text-bottom"></a>.</span>
+        <span style="white-space: nowrap;"><a href="https://colab.research.google.com/github/yoseflab/hotspot/blob/master/docs/source/{docname}"><img alt="Colab badge" src="https://colab.research.google.com/assets/colab-badge.svg" style="vertical-align:text-bottom"></a>.</span>
         Some tutorial content may look better in light mode.
         </p>
     </div>
