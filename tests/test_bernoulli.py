@@ -25,7 +25,7 @@ def test_local_autocorrelation_centered():
     umi_counts = pd.Series(umi_counts)
 
     neighbors, weights = neighbors_and_weights(
-        latent, n_neighbors=30, neighborhood_factor=3
+        latent, n_neighbors=30, neighborhood_factor=3, approx_neighbors=False
     )
     neighbors = neighbors.values
     weights = weights.values
