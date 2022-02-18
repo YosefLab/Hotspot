@@ -27,7 +27,6 @@ def neighbors_and_weights(data, n_neighbors=30, neighborhood_factor=3, approx_ne
 
     if approx_neighbors:
         index = NNDescent(coords, n_neighbors=n_neighbors)
-        index.prepare()
         ind, dist = index.neighbor_graph
     else:
         nbrs = NearestNeighbors(n_neighbors=n_neighbors,
