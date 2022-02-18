@@ -4,6 +4,8 @@ from tqdm import tqdm
 import pandas as pd
 import multiprocessing
 import itertools
+from numba_progress import ProgressBar
+
 
 from . import danb_model
 from . import bernoulli_model
@@ -745,7 +747,15 @@ def compute_hs_pairs_centered_cond(counts, neighbors, weights,
     eg2s = np.asarray(conditional_eg2(counts, neighbors, weights))
 
     pairs = list(itertools.combinations(range(counts.shape[0]), 2))
-    results = _map_fun_parallel_pairs_centered_cond(pairs, counts, neighbors, weights, eg2s)
+    with ProgressBar(total=len(pairs)) as progress:
+        results = _map_fun_parallel_pairs_centered_cond(
+            pairs,
+            counts,
+            neighbors,
+            weights,
+            eg2s,
+            progress,
+        )
 
     N = counts.shape[0]
     pairs = np.array(pairs)
@@ -790,7 +800,7 @@ def _map_fun_parallel_pairs_centered(rowpair):
 
 
 @jit(nopython=True, parallel=True, cache=True)
-def _map_fun_parallel_pairs_centered_cond(pairs, counts, neighbors, weights, eg2s):
+def _map_fun_parallel_pairs_centered_cond(pairs, counts, neighbors, weights, eg2s, progress):
 
     outs = [[0.0, 0.0]] * len(pairs)
     for i in prange(len(pairs)):
@@ -800,6 +810,7 @@ def _map_fun_parallel_pairs_centered_cond(pairs, counts, neighbors, weights, eg2
         )
         outs[i][0] += a
         outs[i][1] += b
+        progress.update(1)
     return outs
 
 
