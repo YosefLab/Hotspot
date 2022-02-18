@@ -48,12 +48,12 @@ def test_models():
             layer_key="sparse",
         )
         hs.create_knn_graph(False, n_neighbors=30)
-        hs.compute_autocorrelations()
+        hs.compute_autocorrelations(jobs=1)
 
         assert isinstance(hs.results, pd.DataFrame)
         assert hs.results.shape[0] == N_GENES
 
-        hs.compute_local_correlations(gene_exp.index)
+        hs.compute_local_correlations(gene_exp.index, jobs=1)
 
         assert isinstance(hs.local_correlation_z, pd.DataFrame)
         assert hs.local_correlation_z.shape[0] == N_GENES

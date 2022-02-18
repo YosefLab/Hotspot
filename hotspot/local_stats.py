@@ -1,5 +1,5 @@
 import numpy as np
-from numba import jit
+from numba import jit, prange
 from tqdm import tqdm
 import pandas as pd
 from scipy.stats import norm
@@ -16,12 +16,12 @@ from .knn import compute_node_degree
 from .utils import center_values
 
 
-@jit(nopython=True)
+@jit(nopython=True, parallel=True, cache=True)
 def local_cov_weights(x, neighbors, weights):
     out = 0
 
-    for i in range(len(x)):
-        for k in range(neighbors.shape[1]):
+    for i in prange(len(x)):
+        for k in prange(neighbors.shape[1]):
 
             j = neighbors[i, k]
             w_ij = weights[i, k]
@@ -36,7 +36,7 @@ def local_cov_weights(x, neighbors, weights):
     return out
 
 
-@jit(nopython=True)
+@jit(nopython=True, cache=True)
 def compute_moments_weights_slow(mu, x2, neighbors, weights):
     """
     This version exaustively iterates over all |E|^2 terms
@@ -101,7 +101,7 @@ def compute_moments_weights_slow(mu, x2, neighbors, weights):
     return EG, EG2
 
 
-@jit(nopython=True)
+@jit(nopython=True, parallel=True, cache=True)
 def compute_moments_weights(mu, x2, neighbors, weights):
 
     N = neighbors.shape[0]
@@ -109,8 +109,8 @@ def compute_moments_weights(mu, x2, neighbors, weights):
 
     # Calculate E[G]
     EG = 0
-    for i in range(N):
-        for k in range(K):
+    for i in prange(N):
+        for k in prange(K):
             j = neighbors[i, k]
             wij = weights[i, k]
 
@@ -143,8 +143,8 @@ def compute_moments_weights(mu, x2, neighbors, weights):
         EG2 += (x2[i] - mu[i] ** 2) * (t1[i] - t2[i])
 
     #  Get the x^2*y^2 terms
-    for i in range(N):
-        for k in range(K):
+    for i in prange(N):
+        for k in prange(K):
             j = neighbors[i, k]
 
             wij = weights[i, k]
@@ -156,12 +156,12 @@ def compute_moments_weights(mu, x2, neighbors, weights):
     return EG, EG2
 
 
-@jit(nopython=True)
+@jit(nopython=True, parallel=True, cache=True)
 def compute_local_cov_max(node_degrees, vals):
     tot = 0.0
 
-    for i in range(node_degrees.size):
-        tot += node_degrees[i] * (vals[i] ** 2)
+    for i in prange(node_degrees.size):
+        tot += node_degrees[i]*(vals[i]**2)
 
     return tot / 2
 

@@ -266,6 +266,7 @@ class Hotspot:
             Gene ids are in the index
 
         """
+        numba.set_num_threads(jobs)
         return self._compute_hotspot(jobs)
 
     def compute_local_correlations(self, genes, jobs=1):

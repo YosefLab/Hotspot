@@ -28,8 +28,8 @@ def conditional_eg2(counts, neighbors, weights):
 
     for g in prange(G):
         x = counts[g]
-        for i in range(N):
-            for k in range(K):
+        for i in prange(N):
+            for k in prange(K):
                 j = neighbors[i, k]
 
                 wij = weights[i, k]
@@ -103,13 +103,13 @@ def conditional_eg2_slow(x, neighbors, weights):
     return node_totals.sum() - node_totals_diag.sum() + dup
 
 
-@jit(nopython=True, cache=True)
+@jit(nopython=True, cache=True, parallel=True)
 def local_cov_pair(x, y, neighbors, weights):
     """Test statistic for local pair-wise autocorrelation"""
     out = 0
 
-    for i in range(len(x)):
-        for k in range(neighbors.shape[1]):
+    for i in prange(len(x)):
+        for k in prange(neighbors.shape[1]):
 
             j = neighbors[i, k]
             w_ij = weights[i, k]
@@ -548,7 +548,7 @@ def _compute_hs_pairs_inner_centered(
     return (lc, Z)
 
 
-@jit(nopython=True, cache=True, parallel=True)
+@jit(nopython=True, cache=True)
 def _compute_hs_pairs_inner_centered_cond_sym(
     rowpair, counts, neighbors, weights, eg2s
 ):
