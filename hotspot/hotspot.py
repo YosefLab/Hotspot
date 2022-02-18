@@ -2,7 +2,7 @@ import numpy as np
 import pandas as pd
 import warnings
 
-from scipy.sparse import issparse, csc_matrix
+from scipy.sparse import issparse, csr_matrix
 
 from .knn import (
     neighbors_and_weights,
@@ -80,7 +80,8 @@ class Hotspot:
         if latent is not None:
             latent = pd.DataFrame(latent, index=adata.obs_names)
 
-        if issparse(counts) and not isinstance(counts, csc_matrix):
+        # because of transpose we check if its csr
+        if issparse(counts) and not isinstance(counts, csr_matrix):
             warnings.warn("Hotspot will work faster when counts are a csc sparse matrix.")
 
         if tree is not None:
