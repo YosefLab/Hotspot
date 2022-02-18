@@ -17,7 +17,7 @@ from .utils import center_values
 
 
 @jit(nopython=True, parallel=True, cache=True)
-def conditional_eg2(counts, neighbors, weights):
+def conditional_eg2(counts, neighbors, weights, progress):
     """
     Computes EG2 for the conditional correlation
     """
@@ -38,10 +38,11 @@ def conditional_eg2(counts, neighbors, weights):
                 if wij == 0:
                     continue
 
-                t1x[i] += wij*x[j]
-                t1x[j] += wij*x[i]
+                t1x[i] += wij * x[j]
+                t1x[j] += wij * x[i]
 
         out[g] += (t1x**2).sum()
+        progress.update(1)
 
     return out
 
@@ -86,8 +87,8 @@ def conditional_eg2_slow(x, neighbors, weights):
         weights_i = weights_all[i]
 
         for j, wij in zip(neighbors_i, weights_i):
-            node_totals[i] += x[j]*wij
-            node_totals_diag[i] += (x[j]*wij)**2
+            node_totals[i] += x[j] * wij
+            node_totals_diag[i] += (x[j] * wij) ** 2
 
     node_totals = node_totals**2
 
@@ -100,7 +101,7 @@ def conditional_eg2_slow(x, neighbors, weights):
             if wij == 0:
                 continue
 
-            dup += wij**2*(x[i]**2+x[j]**2)
+            dup += wij**2 * (x[i] ** 2 + x[j] ** 2)
 
     return node_totals.sum() - node_totals_diag.sum() + dup
 
@@ -122,7 +123,7 @@ def local_cov_pair(x, y, neighbors, weights):
             yi = y[i]
             yj = y[j]
 
-            out += w_ij*(xi*yj + yi*xj)/2
+            out += w_ij * (xi * yj + yi * xj) / 2
 
     return out
 
@@ -228,10 +229,7 @@ def compute_moments_weights_pairs_slow(muA, a2, muB, b2, neighbors, weights):
 
 
 @jit(nopython=True, cache=True)
-def compute_moments_weights_pairs(
-        muX, x2,
-        muY, y2,
-        neighbors, weights):
+def compute_moments_weights_pairs(muX, x2, muY, y2, neighbors, weights):
     """Computes the expectations of the local pair-wise test statistic"""
 
     N = neighbors.shape[0]
@@ -244,11 +242,11 @@ def compute_moments_weights_pairs(
             j = neighbors[i, k]
             wij = weights[i, k]
 
-            EG += wij*(muX[i]*muY[j] + muY[i]*muX[j])/2
+            EG += wij * (muX[i] * muY[j] + muY[i] * muX[j]) / 2
 
     # Calculate E[G^2]
     EG2 = 0
-    EG2 += (EG**2)
+    EG2 += EG**2
 
     #   Get the x^2*y*z terms
     t1x = np.zeros(N)
@@ -265,24 +263,24 @@ def compute_moments_weights_pairs(
             if wij == 0:
                 continue
 
-            t1x[i] += wij*muX[j]
-            t2x[i] += wij**2*muX[j]**2
+            t1x[i] += wij * muX[j]
+            t2x[i] += wij**2 * muX[j] ** 2
 
-            t1x[j] += wij*muX[i]
-            t2x[j] += wij**2*muX[i]**2
+            t1x[j] += wij * muX[i]
+            t2x[j] += wij**2 * muX[i] ** 2
 
-            t1y[i] += wij*muY[j]
-            t2y[i] += wij**2*muY[j]**2
+            t1y[i] += wij * muY[j]
+            t2y[i] += wij**2 * muY[j] ** 2
 
-            t1y[j] += wij*muY[i]
-            t2y[j] += wij**2*muY[i]**2
+            t1y[j] += wij * muY[i]
+            t2y[j] += wij**2 * muY[i] ** 2
 
     t1x = t1x**2
     t1y = t1y**2
 
     for i in range(N):
-        EG2 += (y2[i] - muY[i]**2)*(t1x[i] - t2x[i])/4
-        EG2 += (x2[i] - muX[i]**2)*(t1y[i] - t2y[i])/4
+        EG2 += (y2[i] - muY[i] ** 2) * (t1x[i] - t2x[i]) / 4
+        EG2 += (x2[i] - muX[i] ** 2) * (t1y[i] - t2y[i]) / 4
 
     #  Get the x^2*y^2 terms
     for i in range(N):
@@ -291,19 +289,22 @@ def compute_moments_weights_pairs(
 
             wij = weights[i, k]
 
-            EG2 += wij**2*(
-                x2[i]*y2[j] - (muX[i]**2)*(muY[j]**2) +
-                y2[i]*x2[j] - (muY[i]**2)*(muX[j]**2)
-            )/4
+            EG2 += (
+                wij**2
+                * (
+                    x2[i] * y2[j]
+                    - (muX[i] ** 2) * (muY[j] ** 2)
+                    + y2[i] * x2[j]
+                    - (muY[i] ** 2) * (muX[j] ** 2)
+                )
+                / 4
+            )
 
     return EG, EG2
 
 
 @jit(nopython=True, cache=True)
-def compute_moments_weights_pairs_fast(
-        muX, x2,
-        muY, y2,
-        neighbors, weights):
+def compute_moments_weights_pairs_fast(muX, x2, muY, y2, neighbors, weights):
     """
     Computes the expectations of the local pair-wise test statistic
 
@@ -332,39 +333,45 @@ def compute_moments_weights_pairs_fast(
             if wij == 0:
                 continue
 
-            muX_i2 = muX[i]**2
-            muX_j2 = muX[j]**2
-            muY_i2 = muY[i]**2
-            muY_j2 = muY[j]**2
+            muX_i2 = muX[i] ** 2
+            muX_j2 = muX[j] ** 2
+            muY_i2 = muY[i] ** 2
+            muY_j2 = muY[j] ** 2
 
-            EG += wij*(muX[i]*muY[j] + muY[i]*muX[j])/2
+            EG += wij * (muX[i] * muY[j] + muY[i] * muX[j]) / 2
 
-            t1x[i] += wij*muX[j]
-            t2x[i] += wij_2*muX_j2
+            t1x[i] += wij * muX[j]
+            t2x[i] += wij_2 * muX_j2
 
-            t1x[j] += wij*muX[i]
-            t2x[j] += wij_2*muX_i2
+            t1x[j] += wij * muX[i]
+            t2x[j] += wij_2 * muX_i2
 
-            t1y[i] += wij*muY[j]
-            t2y[i] += wij_2*muY_j2
+            t1y[i] += wij * muY[j]
+            t2y[i] += wij_2 * muY_j2
 
-            t1y[j] += wij*muY[i]
-            t2y[j] += wij_2*muY_i2
+            t1y[j] += wij * muY[i]
+            t2y[j] += wij_2 * muY_i2
 
-            EG2 += wij_2*(
-                x2[i]*y2[j] - (muX_i2)*(muY_j2) +
-                y2[i]*x2[j] - (muY_i2)*(muX_j2)
-            )/4
+            EG2 += (
+                wij_2
+                * (
+                    x2[i] * y2[j]
+                    - (muX_i2) * (muY_j2)
+                    + y2[i] * x2[j]
+                    - (muY_i2) * (muX_j2)
+                )
+                / 4
+            )
 
     # Calculate E[G^2]
     t1x = t1x**2
     t1y = t1y**2
 
     for i in range(N):
-        EG2 += (y2[i] - muY[i]**2)*(t1x[i] - t2x[i])/4
-        EG2 += (x2[i] - muX[i]**2)*(t1y[i] - t2y[i])/4
+        EG2 += (y2[i] - muY[i] ** 2) * (t1x[i] - t2x[i]) / 4
+        EG2 += (x2[i] - muX[i] ** 2) * (t1y[i] - t2y[i]) / 4
 
-    EG2 += (EG**2)
+    EG2 += EG**2
 
     return EG, EG2
 
@@ -393,7 +400,7 @@ def compute_moments_weights_pairs_std(neighbors, weights):
         for k in range(K):
             wij = weights[i, k]
 
-            EG2 += (wij**2)/2
+            EG2 += (wij**2) / 2
 
     return EG, EG2
 
@@ -403,14 +410,13 @@ def create_centered_counts(counts, model, num_umi):
     Creates a matrix of centered/standardized counts given
     the selected statistical model
     """
-    out = np.zeros_like(counts, dtype='double')
+    out = np.zeros_like(counts, dtype="double")
 
     for i in tqdm(range(out.shape[0])):
 
         vals_x = counts[i]
 
-        out_x = create_centered_counts_row(
-            vals_x, model, num_umi)
+        out_x = create_centered_counts_row(vals_x, model, num_umi)
 
         out[i] = out_x
 
@@ -419,57 +425,50 @@ def create_centered_counts(counts, model, num_umi):
 
 def create_centered_counts_row(vals_x, model, num_umi):
 
-    if model == 'bernoulli':
-        vals_x = (vals_x > 0).astype('double')
-        mu_x, var_x, x2_x = bernoulli_model.fit_gene_model(
-            vals_x, num_umi)
+    if model == "bernoulli":
+        vals_x = (vals_x > 0).astype("double")
+        mu_x, var_x, x2_x = bernoulli_model.fit_gene_model(vals_x, num_umi)
 
-    elif model == 'danb':
-        mu_x, var_x, x2_x = danb_model.fit_gene_model(
-            vals_x, num_umi)
+    elif model == "danb":
+        mu_x, var_x, x2_x = danb_model.fit_gene_model(vals_x, num_umi)
 
-    elif model == 'normal':
-        mu_x, var_x, x2_x = normal_model.fit_gene_model(
-            vals_x, num_umi)
+    elif model == "normal":
+        mu_x, var_x, x2_x = normal_model.fit_gene_model(vals_x, num_umi)
 
-    elif model == 'none':
-        mu_x, var_x, x2_x = none_model.fit_gene_model(
-            vals_x, num_umi)
+    elif model == "none":
+        mu_x, var_x, x2_x = none_model.fit_gene_model(vals_x, num_umi)
 
     else:
         raise Exception("Invalid Model: {}".format(model))
 
     var_x[var_x == 0] = 1
-    out_x = (vals_x-mu_x)/(var_x**0.5)
+    out_x = (vals_x - mu_x) / (var_x**0.5)
     out_x[out_x == 0] = 0
 
     return out_x
 
 
-def _compute_hs_pairs_inner(row_i, counts, neighbors, weights, num_umi,
-                            model, centered, Wtot2, D):
+def _compute_hs_pairs_inner(
+    row_i, counts, neighbors, weights, num_umi, model, centered, Wtot2, D
+):
 
     vals_x = counts[row_i]
 
     lc_out = np.zeros(counts.shape[0])
     lc_z_out = np.zeros(counts.shape[0])
 
-    if model == 'bernoulli':
-        vals_x = (vals_x > 0).astype('double')
-        mu_x, var_x, x2_x = bernoulli_model.fit_gene_model(
-            vals_x, num_umi)
+    if model == "bernoulli":
+        vals_x = (vals_x > 0).astype("double")
+        mu_x, var_x, x2_x = bernoulli_model.fit_gene_model(vals_x, num_umi)
 
-    elif model == 'danb':
-        mu_x, var_x, x2_x = danb_model.fit_gene_model(
-            vals_x, num_umi)
+    elif model == "danb":
+        mu_x, var_x, x2_x = danb_model.fit_gene_model(vals_x, num_umi)
 
-    elif model == 'normal':
-        mu_x, var_x, x2_x = normal_model.fit_gene_model(
-            vals_x, num_umi)
+    elif model == "normal":
+        mu_x, var_x, x2_x = normal_model.fit_gene_model(vals_x, num_umi)
 
-    elif model == 'none':
-        mu_x, var_x, x2_x = none_model.fit_gene_model(
-            vals_x, num_umi)
+    elif model == "none":
+        mu_x, var_x, x2_x = none_model.fit_gene_model(vals_x, num_umi)
 
     else:
         raise Exception("Invalid Model: {}".format(model))
@@ -484,22 +483,18 @@ def _compute_hs_pairs_inner(row_i, counts, neighbors, weights, num_umi,
 
         vals_y = counts[row_j]
 
-        if model == 'bernoulli':
-            vals_y = (vals_y > 0).astype('double')
-            mu_y, var_y, x2_y = bernoulli_model.fit_gene_model(
-                vals_y, num_umi)
+        if model == "bernoulli":
+            vals_y = (vals_y > 0).astype("double")
+            mu_y, var_y, x2_y = bernoulli_model.fit_gene_model(vals_y, num_umi)
 
-        elif model == 'danb':
-            mu_y, var_y, x2_y = danb_model.fit_gene_model(
-                vals_y, num_umi)
+        elif model == "danb":
+            mu_y, var_y, x2_y = danb_model.fit_gene_model(vals_y, num_umi)
 
-        elif model == 'normal':
-            mu_y, var_y, x2_y = normal_model.fit_gene_model(
-                vals_y, num_umi)
+        elif model == "normal":
+            mu_y, var_y, x2_y = normal_model.fit_gene_model(vals_y, num_umi)
 
-        elif model == 'none':
-            mu_x, var_x, x2_x = none_model.fit_gene_model(
-                vals_x, num_umi)
+        elif model == "none":
+            mu_x, var_x, x2_x = none_model.fit_gene_model(vals_x, num_umi)
 
         else:
             raise Exception("Invalid Model: {}".format(model))
@@ -508,16 +503,15 @@ def _compute_hs_pairs_inner(row_i, counts, neighbors, weights, num_umi,
             vals_y = center_values(vals_y, mu_y, var_y)
 
         if centered:
-            EG, EG2 = 0, Wtot2/2
+            EG, EG2 = 0, Wtot2 / 2
         else:
-            EG, EG2 = compute_moments_weights_pairs_fast(mu_x, x2_x,
-                                                         mu_y, x2_y,
-                                                         neighbors, weights)
+            EG, EG2 = compute_moments_weights_pairs_fast(
+                mu_x, x2_x, mu_y, x2_y, neighbors, weights
+            )
 
-        lc = local_cov_pair(vals_x, vals_y,
-                            neighbors, weights)
+        lc = local_cov_pair(vals_x, vals_y, neighbors, weights)
 
-        stdG = (EG2 - EG**2)**.5
+        stdG = (EG2 - EG**2) ** 0.5
 
         Z = (lc - EG) / stdG
 
@@ -527,8 +521,7 @@ def _compute_hs_pairs_inner(row_i, counts, neighbors, weights, num_umi,
     return (lc_out, lc_z_out)
 
 
-def _compute_hs_pairs_inner_centered(
-        rowpair, counts, neighbors, weights, Wtot2, D):
+def _compute_hs_pairs_inner_centered(rowpair, counts, neighbors, weights, Wtot2, D):
     """
     This version assumes that the counts have already been modeled
     and centered
@@ -538,12 +531,11 @@ def _compute_hs_pairs_inner_centered(
     vals_x = counts[row_i]
     vals_y = counts[row_j]
 
-    EG, EG2 = 0, Wtot2/2
+    EG, EG2 = 0, Wtot2 / 2
 
-    lc = local_cov_pair(vals_x, vals_y,
-                        neighbors, weights)
+    lc = local_cov_pair(vals_x, vals_y, neighbors, weights)
 
-    stdG = (EG2 - EG**2)**.5
+    stdG = (EG2 - EG**2) ** 0.5
 
     Z = (lc - EG) / stdG
 
@@ -563,19 +555,19 @@ def _compute_hs_pairs_inner_centered_cond_sym(
     vals_x = counts[row_i]
     vals_y = counts[row_j]
 
-    lc = local_cov_pair(vals_x, vals_y, neighbors, weights)*2
+    lc = local_cov_pair(vals_x, vals_y, neighbors, weights) * 2
 
     # Compute xy
     EG, EG2 = 0, eg2s[row_i]
 
-    stdG = (EG2 - EG ** 2) ** 0.5
+    stdG = (EG2 - EG**2) ** 0.5
 
     Zxy = (lc - EG) / stdG
 
     # Compute yx
     EG, EG2 = 0, eg2s[row_j]
 
-    stdG = (EG2 - EG ** 2) ** 0.5
+    stdG = (EG2 - EG**2) ** 0.5
 
     Zyx = (lc - EG) / stdG
 
@@ -587,8 +579,9 @@ def _compute_hs_pairs_inner_centered_cond_sym(
     return (lc, Z)
 
 
-def compute_hs_pairs(counts, neighbors, weights,
-                     num_umi, model, centered=False, jobs=1):
+def compute_hs_pairs(
+    counts, neighbors, weights, num_umi, model, centered=False, jobs=1
+):
 
     genes = counts.index
 
@@ -620,25 +613,23 @@ def compute_hs_pairs(counts, neighbors, weights,
 
     if jobs > 1:
 
-        with multiprocessing.Pool(
-                processes=jobs, initializer=initializer) as pool:
+        with multiprocessing.Pool(processes=jobs, initializer=initializer) as pool:
 
             results = list(
                 tqdm(
                     pool.imap(_map_fun_parallel_pairs, range(counts.shape[0])),
-                    total=counts.shape[0]
+                    total=counts.shape[0],
                 )
             )
     else:
+
         def _map_fun(row_i):
             return _compute_hs_pairs_inner(
-                row_i, counts, neighbors, weights, num_umi,
-                model, centered, Wtot2, D)
-        results = list(
-            tqdm(
-                map(_map_fun, range(counts.shape[0])),
-                total=counts.shape[0]
+                row_i, counts, neighbors, weights, num_umi, model, centered, Wtot2, D
             )
+
+        results = list(
+            tqdm(map(_map_fun, range(counts.shape[0])), total=counts.shape[0])
         )
 
     # Only have the lower triangle so we must rebuild the rest
@@ -663,8 +654,7 @@ def compute_hs_pairs(counts, neighbors, weights,
     return lcs, lc_zs
 
 
-def compute_hs_pairs_centered(counts, neighbors, weights,
-                              num_umi, model, jobs=1):
+def compute_hs_pairs_centered(counts, neighbors, weights, num_umi, model, jobs=1):
 
     genes = counts.index
 
@@ -694,25 +684,21 @@ def compute_hs_pairs_centered(counts, neighbors, weights,
 
     if jobs > 1:
 
-        with multiprocessing.Pool(
-                processes=jobs, initializer=initializer) as pool:
+        with multiprocessing.Pool(processes=jobs, initializer=initializer) as pool:
 
             results = list(
                 tqdm(
-                    pool.imap(_map_fun_parallel_pairs_centered, pairs),
-                    total=len(pairs)
+                    pool.imap(_map_fun_parallel_pairs_centered, pairs), total=len(pairs)
                 )
             )
     else:
+
         def _map_fun(rowpair):
             return _compute_hs_pairs_inner_centered(
-                rowpair, counts, neighbors, weights, Wtot2, D)
-        results = list(
-            tqdm(
-                map(_map_fun, pairs),
-                total=len(pairs)
+                rowpair, counts, neighbors, weights, Wtot2, D
             )
-        )
+
+        results = list(tqdm(map(_map_fun, pairs), total=len(pairs)))
 
     N = counts.shape[0]
     pairs = np.array(pairs)
@@ -730,8 +716,7 @@ def compute_hs_pairs_centered(counts, neighbors, weights,
     return lcs, lc_zs
 
 
-def compute_hs_pairs_centered_cond(counts, neighbors, weights,
-                                   num_umi, model, jobs=1):
+def compute_hs_pairs_centered_cond(counts, neighbors, weights, num_umi, model, jobs=1):
 
     genes = counts.index
 
@@ -743,8 +728,9 @@ def compute_hs_pairs_centered_cond(counts, neighbors, weights,
     D = compute_node_degree(neighbors, weights)
 
     counts = create_centered_counts(counts, model, num_umi)
-
-    eg2s = np.asarray(conditional_eg2(counts, neighbors, weights))
+    with ProgressBar(total=len(pairs)) as progress:
+        egs2 = conditional_eg2(counts, neighbors, weights, progress)
+    eg2s = np.asarray(egs2)
 
     pairs = list(itertools.combinations(range(counts.shape[0]), 2))
     with ProgressBar(total=len(pairs)) as progress:
@@ -783,8 +769,16 @@ def _map_fun_parallel_pairs(row_i):
     global g_D
     global g_counts
     return _compute_hs_pairs_inner(
-        row_i, g_counts, g_neighbors, g_weights, g_num_umi,
-        g_model, g_centered, g_Wtot2, g_D)
+        row_i,
+        g_counts,
+        g_neighbors,
+        g_weights,
+        g_num_umi,
+        g_model,
+        g_centered,
+        g_Wtot2,
+        g_D,
+    )
 
 
 def _map_fun_parallel_pairs_centered(rowpair):
@@ -796,13 +790,16 @@ def _map_fun_parallel_pairs_centered(rowpair):
     global g_D
     global g_counts
     return _compute_hs_pairs_inner_centered(
-        rowpair, g_counts, g_neighbors, g_weights, g_Wtot2, g_D)
+        rowpair, g_counts, g_neighbors, g_weights, g_Wtot2, g_D
+    )
 
 
 @jit(nopython=True, parallel=True, cache=True)
-def _map_fun_parallel_pairs_centered_cond(pairs, counts, neighbors, weights, eg2s, progress):
+def _map_fun_parallel_pairs_centered_cond(
+    pairs, counts, neighbors, weights, eg2s, progress
+):
 
-    outs = [[0.0, 0.0]] * len(pairs)
+    outs = np.zeros((len(pairs, 2)))
     for i in prange(len(pairs)):
         rowpair = pairs[i]
         a, b = _compute_hs_pairs_inner_centered_cond_sym(
@@ -814,13 +811,12 @@ def _map_fun_parallel_pairs_centered_cond(pairs, counts, neighbors, weights, eg2
     return outs
 
 
-
-@jit(nopython=True, cache=True)
+@jit(nopython=True, cache=True, parallel=True)
 def expand_pairs(pairs, vals, N):
 
     out = np.zeros((N, N))
 
-    for i in range(len(pairs)):
+    for i in prange(len(pairs)):
 
         x = pairs[i, 0]
         y = pairs[i, 1]
