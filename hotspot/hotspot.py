@@ -182,7 +182,7 @@ class Hotspot:
             if weighted_graph:
                 raise ValueError("When using `tree` as the metric space, `weighted_graph=True` is not supported")
             neighbors, weights = tree_neighbors_and_weights(
-                self.tree, n_neighbors=n_neighbors, counts=self.counts)
+                self.tree, n_neighbors=n_neighbors, cell_labels=self.adata.obs_names)
         else:
             neighbors, weights = neighbors_and_weights_from_distances(
                 self.distances, cell_index=self.adata.obs_names, n_neighbors=n_neighbors,
