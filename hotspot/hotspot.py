@@ -95,7 +95,7 @@ class Hotspot:
 
             if (
                 len(all_leaves) != counts.shape[1] or
-                len(set(all_leaves) & set(counts.columns)) != len(all_leaves)
+                len(set(all_leaves) & set(adata.obs_names)) != len(all_leaves)
                ):
                 raise ValueError("Tree leaf labels don't match columns in supplied counts matrix")
 
