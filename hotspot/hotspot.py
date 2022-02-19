@@ -101,6 +101,8 @@ class Hotspot:
 
         if umi_counts is None:
             umi_counts = counts.sum(axis=0)
+            # handles sparse matrix outputs of sum
+            umi_counts = np.asarray(umi_counts).ravel()
         else:
             assert umi_counts.size == counts.shape[1]
 
