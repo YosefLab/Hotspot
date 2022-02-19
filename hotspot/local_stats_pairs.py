@@ -105,15 +105,16 @@ def local_cov_pair(x, y, neighbors, weights):
     out = 0
 
     for i in range(len(x)):
+        xi = x[i]
+        yi = y[i]
+        if xi == 0 and yi == 0:
+            continue
         for k in range(neighbors.shape[1]):
 
             j = neighbors[i, k]
             w_ij = weights[i, k]
 
-            xi = x[i]
             xj = x[j]
-
-            yi = y[i]
             yj = y[j]
 
             out += w_ij*(xi*yj + yi*xj)/2
