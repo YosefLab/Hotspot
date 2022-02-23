@@ -126,7 +126,7 @@ class Hotspot:
         self.module_scores = None
 
     def create_knn_graph(
-            self, weighted_graph=False, n_neighbors=30, neighborhood_factor=3):
+            self, weighted_graph=False, n_neighbors=30, neighborhood_factor=3, approx_neighbors=True):
         """Create's the KNN graph and graph weights
 
         The resulting matrices containing the neighbors and weights are
@@ -143,12 +143,16 @@ class Hotspot:
             relative to the distances within the neighborhood.  The weight for
             a cell with a distance d will decay as exp(-d/D) where D is the distance
             to the `n_neighbors`/`neighborhood_factor`-th neighbor.
+        approx_neighbors: bool
+            Use approximate nearest neighbors or exact scikit-learn neighbors. Only
+            when hotspot initialized with `latent`.
         """
 
         if self.latent is not None:
             neighbors, weights = neighbors_and_weights(
                 self.latent, n_neighbors=n_neighbors,
-                neighborhood_factor=neighborhood_factor)
+                neighborhood_factor=neighborhood_factor,
+                approx_neighbors=approx_neighbors)
         elif self.tree is not None:
             if weighted_graph:
                 raise ValueError("When using `tree` as the metric space, `weighted_graph=True` is not supported")

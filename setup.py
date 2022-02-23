@@ -22,6 +22,7 @@ setup(
         'tqdm>=4.32.2',
         'statsmodels>=0.9.0',
         'scikit-learn>=0.21.2',
+        'pynndescent>=0.5',
     ],
     extras_require=dict(
         test=['pytest>=5.0.0'],
