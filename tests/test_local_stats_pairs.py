@@ -27,30 +27,37 @@ def test_pairs():
     latent = sim_data.sim_latent(N_CELLS, N_DIM)
     latent = pd.DataFrame(latent)
 
+    def _compute(neighbors, weights, rel_tol=1e-12):
+        neighbors = neighbors.values
+        weights = weights.values
+
+        weights = make_weights_non_redundant(neighbors, weights)
+
+        # Just generate random muX, muY, x2, y2
+        muX = np.random.rand(N_CELLS) * 2 + 2
+        muY = np.random.rand(N_CELLS) * .5 + 1
+        x2 = (np.random.rand(N_CELLS) * 2 + 1)**2 + muX**2
+        y2 = (np.random.rand(N_CELLS) * 3 + .5)**2 + muY**2
+
+        EG, EG2 = compute_moments_weights_pairs_slow(
+            muX, x2, muY, y2, neighbors, weights
+        )
+        EG_fast, EG2_fast = compute_moments_weights_pairs(
+            muX, x2, muY, y2, neighbors, weights
+        )
+
+        assert math.isclose(EG, EG_fast, rel_tol=rel_tol)
+        assert math.isclose(EG2, EG2_fast, rel_tol=rel_tol)
+
     neighbors, weights = neighbors_and_weights(
-        latent, n_neighbors=30, neighborhood_factor=3)
+        latent, n_neighbors=30, neighborhood_factor=3, approx_neighbors=False)
 
-    neighbors = neighbors.values
-    weights = weights.values
+    _compute(neighbors, weights)
 
-    weights = make_weights_non_redundant(neighbors, weights)
+    neighbors, weights = neighbors_and_weights(
+        latent, n_neighbors=30, neighborhood_factor=3, approx_neighbors=True)
 
-    # Just generate random muX, muY, x2, y2
-    muX = np.random.rand(N_CELLS) * 2 + 2
-    muY = np.random.rand(N_CELLS) * .5 + 1
-    x2 = (np.random.rand(N_CELLS) * 2 + 1)**2 + muX**2
-    y2 = (np.random.rand(N_CELLS) * 3 + .5)**2 + muY**2
-
-    EG, EG2 = compute_moments_weights_pairs_slow(
-        muX, x2, muY, y2, neighbors, weights
-    )
-    EG_fast, EG2_fast = compute_moments_weights_pairs(
-        muX, x2, muY, y2, neighbors, weights
-    )
-
-    assert math.isclose(EG, EG_fast, rel_tol=1e-12)
-    assert math.isclose(EG2, EG2_fast, rel_tol=1e-12)
-
+    _compute(neighbors, weights, rel_tol=0.005)
 
 def test_pairs_fast():
     """
@@ -65,29 +72,39 @@ def test_pairs_fast():
     latent = sim_data.sim_latent(N_CELLS, N_DIM)
     latent = pd.DataFrame(latent)
 
+    def _compute(neighbors, weights, rel_tol=1e-12):
+        neighbors = neighbors.values
+        weights = weights.values
+
+        weights = make_weights_non_redundant(neighbors, weights)
+
+        # Just generate random muX, muY, x2, y2
+        muX = np.random.rand(N_CELLS) * 2 + 2
+        muY = np.random.rand(N_CELLS) * .5 + 1
+        x2 = (np.random.rand(N_CELLS) * 2 + 1)**2 + muX**2
+        y2 = (np.random.rand(N_CELLS) * 3 + .5)**2 + muY**2
+
+        EG, EG2 = compute_moments_weights_pairs(
+            muX, x2, muY, y2, neighbors, weights
+        )
+        EG_fast, EG2_fast = compute_moments_weights_pairs_fast(
+            muX, x2, muY, y2, neighbors, weights
+        )
+
+        assert math.isclose(EG, EG_fast, rel_tol=rel_tol)
+        assert math.isclose(EG2, EG2_fast, rel_tol=rel_tol)
+
+
     neighbors, weights = neighbors_and_weights(
-        latent, n_neighbors=30, neighborhood_factor=3)
+        latent, n_neighbors=30, neighborhood_factor=3, approx_neighbors=False)
 
-    neighbors = neighbors.values
-    weights = weights.values
+    _compute(neighbors, weights)
 
-    weights = make_weights_non_redundant(neighbors, weights)
+    neighbors, weights = neighbors_and_weights(
+        latent, n_neighbors=30, neighborhood_factor=3, approx_neighbors=False)
 
-    # Just generate random muX, muY, x2, y2
-    muX = np.random.rand(N_CELLS) * 2 + 2
-    muY = np.random.rand(N_CELLS) * .5 + 1
-    x2 = (np.random.rand(N_CELLS) * 2 + 1)**2 + muX**2
-    y2 = (np.random.rand(N_CELLS) * 3 + .5)**2 + muY**2
+    _compute(neighbors, weights, rel_tol=0.005)
 
-    EG, EG2 = compute_moments_weights_pairs(
-        muX, x2, muY, y2, neighbors, weights
-    )
-    EG_fast, EG2_fast = compute_moments_weights_pairs_fast(
-        muX, x2, muY, y2, neighbors, weights
-    )
-
-    assert math.isclose(EG, EG_fast, rel_tol=1e-12)
-    assert math.isclose(EG2, EG2_fast, rel_tol=1e-12)
 
 
 def test_pairs_std():

@@ -25,7 +25,7 @@ def test_local_autocorrelation_centered():
     umi_counts = pd.Series(umi_counts)
 
     neighbors, weights = neighbors_and_weights(
-        latent, n_neighbors=30, neighborhood_factor=3
+        latent, n_neighbors=30, neighborhood_factor=3, approx_neighbors=False
     )
     neighbors = neighbors.values
     weights = weights.values
@@ -145,7 +145,7 @@ def test_local_correlation_centered():
             gene_p, Gmean, EG
         )
         assert math.isclose(
-            EstdG, Gstd, rel_tol=5e-2
+            EstdG, Gstd, rel_tol=1e-1
         ), "stdG is off for gene_p={}, Actual={:.2f}, Expected={:.2f}".format(
             gene_p, Gstd, EstdG
         )
