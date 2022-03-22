@@ -62,14 +62,21 @@ When creating the object, you need to specify:
 For example:
 ```
 import hotspot
-hs = hotspot.Hotspot(counts, model='danb', latent=pca_results, umi_counts=umi_counts)
+hs = hotspot.Hotspot(
+    adata,
+    layer_key="counts",
+    model='danb',
+    latent_obsm_key="X_pca",
+    umi_counts_obs_key="total_counts"
+)
 ```
 
 In the example above:
-- `counts` is a Genes X Cells pandas DataFrame of gene counts
+- `adata` is a [AnnData](https://anndata.readthedocs.io/en/latest/) object of cells by genes
+- `layer_key` is the layer of `adata` containing count information
 - `model` 'danb' selects the umi-adjusted negative binomial model
-- `latent` is a Cells x Components pandas DataFrame (the PCA-reduced space)
-- `umi_counts` is a pandas Series with UMI count for each cell
+- `latent_obsm_key` is the `.obsm` key of `adata` containing Cells x Components matrix (the PCA-reduced space)
+- `umi_counts_obs_key` is the `.obs` key of `adata` with the UMI count for each cell
 
 
 ### Alternative choices for 'model'
