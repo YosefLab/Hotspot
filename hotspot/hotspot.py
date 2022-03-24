@@ -1,5 +1,8 @@
 import numpy as np
 import pandas as pd
+import warnings
+
+from scipy.sparse import issparse, csr_matrix
 
 from .knn import (
     neighbors_and_weights,
@@ -19,17 +22,19 @@ from tqdm import tqdm
 class Hotspot:
 
     def __init__(
-            self, counts, model='danb',
-            latent=None, distances=None, tree=None,
-            umi_counts=None):
+            self, adata, layer_key=None, model='danb',
+            latent_obsm_key=None, distances_obsp_key=None, tree=None,
+            umi_counts_obs_key=None):
         """Initialize a Hotspot object for analysis
 
         Either `latent` or `tree` or `distances` is required.
 
         Parameters
         ----------
-        counts : pandas.DataFrame
-            Count matrix (shape is genes x cells)
+        adata : anndata.AnnData
+            Count matrix (shape is cells by genes)
+        layer_key: str
+            Key in adata.layers with count data, uses adata.X if None.
         model : string, optional
             Specifies the null model to use for gene expression.
             Valid choices are:
@@ -39,40 +44,45 @@ class Hotspot:
                 - 'normal': Depth-Adjusted Normal
                 - 'none': Assumes data has been pre-standardized
 
-        latent : pandas.DataFrame, optional
+        latent_obsm_key : string, optional
             Latent space encoding cell-cell similarities with euclidean
-            distances.  Shape is (cells x dims)
-        distances : pandas.DataFrame, optional
+            distances.  Shape is (cells x dims). Input is key in adata.obsm
+        distances_obsp_key : pandas.DataFrame, optional
             Distances encoding cell-cell similarities directly
-            Shape is (cells x cells)
+            Shape is (cells x cells). Input is key in adata.obsp
         tree : ete3.coretype.tree.TreeNode
             Root tree node.  Can be created using ete3.Tree
-        umi_counts : pandas.Series, optional
+        umi_counts_obs_key : str
             Total umi count per cell.  Used as a size factor.
             If omitted, the sum over genes in the counts matrix is used
         """
+        counts = self._counts_from_anndata(adata, layer_key)
+        distances = adata.obsp[distances_obsp_key] if distances_obsp_key is not None else None
+        latent = adata.obsm[latent_obsm_key] if latent_obsm_key is not None else None
+        umi_counts = adata.obs[umi_counts_obs_key] if umi_counts_obs_key is not None else None
 
         if latent is None and distances is None and tree is None:
-            raise ValueError("Neither `latent` or `tree` or `distance` arguments were supplied.  One of these is required")
+            raise ValueError("Neither `latent_obsm_key` or `tree` or `distances_obsp_key` arguments were supplied.  One of these is required")
 
         if latent is not None and distances is not None:
-            raise ValueError("Both `latent` and `distances` provided - only one of these should be provided.")
+            raise ValueError("Both `latent_obsm_key` and `distances_obsp_key` provided - only one of these should be provided.")
 
         if latent is not None and tree is not None:
-            raise ValueError("Both `latent` and `tree` provided - only one of these should be provided.")
+            raise ValueError("Both `latent_obsm_key` and `tree` provided - only one of these should be provided.")
 
         if distances is not None and tree is not None:
-            raise ValueError("Both `distances` and `tree` provided - only one of these should be provided.")
-
-        if latent is not None:
-            if counts.shape[1] != latent.shape[0]:
-                if counts.shape[0] == latent.shape[0]:
-                    raise ValueError("`counts` input should be a Genes x Cells dataframe.  Maybe needs transpose?")
-                raise ValueError("Size mismatch counts/latent. Columns of `counts` should match rows of `latent`.")
+            raise ValueError("Both `distances_obsp_key` and `tree` provided - only one of these should be provided.")
 
         if distances is not None:
-            assert counts.shape[1] == distances.shape[0]
-            assert counts.shape[1] == distances.shape[1]
+            assert not issparse(distances)
+            distances = pd.DataFrame(distances, index=adata.obs_names, columns=adata.obs_names)
+
+        if latent is not None:
+            latent = pd.DataFrame(latent, index=adata.obs_names)
+
+        # because of transpose we check if its csr
+        if issparse(counts) and not isinstance(counts, csr_matrix):
+            warnings.warn("Hotspot will work faster when counts are a csc sparse matrix.")
 
         if tree is not None:
             try:
@@ -85,17 +95,19 @@ class Hotspot:
 
             if (
                 len(all_leaves) != counts.shape[1] or
-                len(set(all_leaves) & set(counts.columns)) != len(all_leaves)
+                len(set(all_leaves) & set(adata.obs_names)) != len(all_leaves)
                ):
                 raise ValueError("Tree leaf labels don't match columns in supplied counts matrix")
 
         if umi_counts is None:
             umi_counts = counts.sum(axis=0)
+            # handles sparse matrix outputs of sum
+            umi_counts = np.asarray(umi_counts).ravel()
         else:
             assert umi_counts.size == counts.shape[1]
 
         if not isinstance(umi_counts, pd.Series):
-            umi_counts = pd.Series(umi_counts)
+            umi_counts = pd.Series(umi_counts, index=adata.obs_names)
 
         valid_models = {'danb', 'bernoulli', 'normal', 'none'}
         if model not in valid_models:
@@ -103,13 +115,15 @@ class Hotspot:
                 'Input `model` should be one of {}'.format(valid_models)
             )
 
-        valid_genes = counts.var(axis=1) > 0
+        valid_genes = counts.sum(axis=1) > 0
         n_invalid = counts.shape[0] - valid_genes.sum()
         if n_invalid > 0:
-            counts = counts.loc[valid_genes]
-            print(
-                "\nRemoving {} undetected/non-varying genes".format(n_invalid)
+            raise ValueError(
+                "\nDetected all zero genes. Please filter adata and reinitialize."
             )
+
+        self.adata = adata
+        self.layer_key = layer_key
 
         self.counts = counts
         self.latent = latent
@@ -124,6 +138,21 @@ class Hotspot:
         self.local_correlation_z = None
         self.linkage = None
         self.module_scores = None
+
+    @staticmethod
+    def _counts_from_anndata(adata, layer_key, dense=False, pandas=False):
+        counts = adata.layers[layer_key] if layer_key is not None else adata.X
+        # handles adata view
+        if not issparse(counts):
+            counts = np.asarray(counts)
+        counts = counts.transpose()
+
+        if dense:
+            counts = counts.A
+            if pandas:
+                counts = pd.DataFrame(counts, index=adata.var_names, columns=adata.obs_names)
+
+        return counts
 
     def create_knn_graph(
             self, weighted_graph=False, n_neighbors=30, neighborhood_factor=3, approx_neighbors=True):
@@ -157,14 +186,14 @@ class Hotspot:
             if weighted_graph:
                 raise ValueError("When using `tree` as the metric space, `weighted_graph=True` is not supported")
             neighbors, weights = tree_neighbors_and_weights(
-                self.tree, n_neighbors=n_neighbors, counts=self.counts)
+                self.tree, n_neighbors=n_neighbors, cell_labels=self.adata.obs_names)
         else:
             neighbors, weights = neighbors_and_weights_from_distances(
-                self.distances, n_neighbors=n_neighbors,
+                self.distances, cell_index=self.adata.obs_names, n_neighbors=n_neighbors,
                 neighborhood_factor=neighborhood_factor)
 
-        neighbors = neighbors.loc[self.counts.columns]
-        weights = weights.loc[self.counts.columns]
+        neighbors = neighbors.loc[self.adata.obs_names]
+        weights = weights.loc[self.adata.obs_names]
 
         self.neighbors = neighbors
 
@@ -181,7 +210,7 @@ class Hotspot:
 
         self.weights = weights
 
-    def compute_hotspot(self, jobs=1):
+    def _compute_hotspot(self, jobs=1):
         """Perform feature selection using local autocorrelation
 
         In addition to returning output, this also stores the output
@@ -210,7 +239,8 @@ class Hotspot:
 
         results = compute_hs(
             self.counts, self.neighbors, self.weights,
-            self.umi_counts, self.model, centered=True, jobs=jobs)
+            self.umi_counts, self.model, genes=self.adata.var_names,
+            centered=True, jobs=jobs)
 
         self.results = results
 
@@ -240,7 +270,7 @@ class Hotspot:
             Gene ids are in the index
 
         """
-        return self.compute_hotspot(jobs)
+        return self._compute_hotspot(jobs)
 
     def compute_local_correlations(self, genes, jobs=1):
         """Define gene-gene relationships with pair-wise local correlations
@@ -267,9 +297,15 @@ class Hotspot:
             "Computing pair-wise local correlation on {} features..."
             .format(len(genes))
         )
+        counts_dense = self._counts_from_anndata(
+            self.adata[:, genes],
+            self.layer_key,
+            dense=True,
+            pandas=True,
+        )
 
         lc, lcz = compute_hs_pairs_centered_cond(
-            self.counts.loc[genes], self.neighbors, self.weights,
+            counts_dense, self.neighbors, self.weights,
             self.umi_counts, self.model, jobs=jobs)
 
         self.local_correlation_c = lc
@@ -342,8 +378,14 @@ class Hotspot:
         for module in tqdm(modules_to_compute):
             module_genes = self.modules.index[self.modules == module]
 
+            counts_dense = self._counts_from_anndata(
+                self.adata[:, module_genes],
+                self.layer_key,
+                dense=True
+            )
+
             scores = modules.compute_scores(
-                self.counts.loc[module_genes].values,
+                counts_dense,
                 self.model, self.umi_counts.values,
                 self.neighbors.values, self.weights.values
             )
@@ -351,7 +393,7 @@ class Hotspot:
             module_scores[module] = scores
 
         module_scores = pd.DataFrame(module_scores)
-        module_scores.index = self.counts.columns
+        module_scores.index = self.adata.obs_names
 
         self.module_scores = module_scores
 

@@ -22,10 +22,12 @@ setup(
         'tqdm>=4.32.2',
         'statsmodels>=0.9.0',
         'scikit-learn>=0.21.2',
+        'anndata>=0.7',
         'pynndescent>=0.5',
     ],
     extras_require=dict(
         test=['pytest>=5.0.0'],
+        docs=["sphinx-book-theme>=0.2.0", "nbsphinx", "sphinx>=4.1", "ipython"]
     ),
 
     include_package_data=True,

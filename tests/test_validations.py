@@ -2,6 +2,10 @@ import numpy as np
 import pandas as pd
 from hotspot import sim_data
 from hotspot import Hotspot
+import anndata
+import pytest
+
+from scipy.sparse import csc_matrix
 
 
 def test_models():
@@ -30,16 +34,20 @@ def test_models():
         columns=latent.index
     )
 
+    adata = anndata.AnnData(gene_exp.transpose())
+    adata.layers["sparse"] = csc_matrix(adata.X)
+    adata.obsm["latent"] = latent.values
+    adata.obs["umi_counts"] = umi_counts.values
+
     for model in ['danb', 'bernoulli', 'normal', 'none']:
         hs = Hotspot(
-            gene_exp, model=model, latent=latent, umi_counts=umi_counts
+            adata,
+            model=model,
+            latent_obsm_key="latent",
+            umi_counts_obs_key="umi_counts",
+            layer_key="sparse",
         )
         hs.create_knn_graph(False, n_neighbors=30)
-        hs.compute_hotspot()
-
-        assert isinstance(hs.results, pd.DataFrame)
-        assert hs.results.shape[0] == N_GENES
-
         hs.compute_autocorrelations()
 
         assert isinstance(hs.results, pd.DataFrame)
@@ -89,8 +97,11 @@ def test_filter_genes():
         columns=latent.index
     )
 
-    hs = Hotspot(
-        gene_exp, model='normal', latent=latent, umi_counts=umi_counts
-    )
+    adata = anndata.AnnData(gene_exp.transpose())
+    adata.obsm["latent"] = latent.values
+    adata.obs["umi_counts"] = umi_counts.values
 
-    assert hs.counts.shape[0] == N_GENES
+    with pytest.raises(ValueError):
+        hs = Hotspot(
+            adata, model='normal', latent_obsm_key="latent", umi_counts_obs_key="umi_counts"
+        )

@@ -176,7 +176,7 @@ def _knn(leaf, K):
     return neighbors
 
 
-def tree_neighbors_and_weights(tree, n_neighbors, counts):
+def tree_neighbors_and_weights(tree, n_neighbors, cell_labels):
     """
     Computes nearest neighbors and associated weights for data
     Uses distance along the tree object
@@ -189,8 +189,8 @@ def tree_neighbors_and_weights(tree, n_neighbors, counts):
         The root of the tree
     n_neighbors: int
         Number of neighbors to find
-    counts: pandas.DataFrame
-        Count data for features.  Just used for the column labels
+    cell_labels
+        Labels of cells (barcodes)
 
     Returns
     =======
@@ -212,7 +212,7 @@ def tree_neighbors_and_weights(tree, n_neighbors, counts):
         neighbors = _knn(leaf, K)
         all_neighbors[leaf.name] = neighbors
 
-    cell_ix = {c: i for i, c in enumerate(counts.columns)}
+    cell_ix = {c: i for i, c in enumerate(cell_labels)}
 
     knn_ix = np.zeros((len(all_neighbors), K), dtype='int64')
     for cell in all_neighbors:
@@ -220,10 +220,10 @@ def tree_neighbors_and_weights(tree, n_neighbors, counts):
         nn_ix = [cell_ix[x] for x in all_neighbors[cell]]
         knn_ix[row, :] = nn_ix
 
-    neighbors = pd.DataFrame(knn_ix, index=counts.columns)
+    neighbors = pd.DataFrame(knn_ix, index=cell_labels)
     weights = pd.DataFrame(
         np.ones_like(neighbors, dtype='float64'),
-        index=counts.columns
+        index=cell_labels
     )
 
     return neighbors, weights

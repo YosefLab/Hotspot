@@ -3,6 +3,7 @@ from numba import jit
 from tqdm import tqdm
 import pandas as pd
 from scipy.stats import norm
+from scipy.sparse import issparse
 from statsmodels.stats.multitest import multipletests
 import multiprocessing
 
@@ -27,8 +28,10 @@ def local_cov_weights(x, neighbors, weights):
 
             xi = x[i]
             xj = x[j]
-
-            out += xi * xj * w_ij
+            if xi == 0 or xj == 0 or w_ij == 0:
+                out += 0
+            else:
+                out += xi * xj * w_ij
 
     return out
 
@@ -51,7 +54,7 @@ def compute_moments_weights_slow(mu, x2, neighbors, weights):
             j = neighbors[i, k]
             wij = weights[i, k]
 
-            EG += wij*mu[i]*mu[j]
+            EG += wij * mu[i] * mu[j]
 
     # Calculate E[G^2]
     EG2 = 0
@@ -68,20 +71,20 @@ def compute_moments_weights_slow(mu, x2, neighbors, weights):
                     y = neighbors[x, z]
                     wxy = weights[x, z]
 
-                    s = wij*wxy
+                    s = wij * wxy
                     if s == 0:
                         continue
 
                     if i == x:
                         if j == y:
-                            t1 = x2[i]*x2[j]
+                            t1 = x2[i] * x2[j]
                         else:
-                            t1 = x2[i]*mu[j]*mu[y]
+                            t1 = x2[i] * mu[j] * mu[y]
                     elif i == y:
                         if j == x:
-                            t1 = x2[i]*x2[j]
+                            t1 = x2[i] * x2[j]
                         else:
-                            t1 = x2[i]*mu[j]*mu[x]
+                            t1 = x2[i] * mu[j] * mu[x]
                     else:  # i is unique since i can't equal j
 
                         if j == x:
@@ -111,7 +114,7 @@ def compute_moments_weights(mu, x2, neighbors, weights):
             j = neighbors[i, k]
             wij = weights[i, k]
 
-            EG += wij*mu[i]*mu[j]
+            EG += wij * mu[i] * mu[j]
 
     # Calculate E[G^2]
     EG2 = 0
@@ -128,16 +131,16 @@ def compute_moments_weights(mu, x2, neighbors, weights):
             if wij == 0:
                 continue
 
-            t1[i] += wij*mu[j]
-            t2[i] += wij**2*mu[j]**2
+            t1[i] += wij * mu[j]
+            t2[i] += wij**2 * mu[j] ** 2
 
-            t1[j] += wij*mu[i]
-            t2[j] += wij**2*mu[i]**2
+            t1[j] += wij * mu[i]
+            t2[j] += wij**2 * mu[i] ** 2
 
     t1 = t1**2
 
     for i in range(N):
-        EG2 += (x2[i] - mu[i]**2)*(t1[i] - t2[i])
+        EG2 += (x2[i] - mu[i] ** 2) * (t1[i] - t2[i])
 
     #  Get the x^2*y^2 terms
     for i in range(N):
@@ -146,9 +149,9 @@ def compute_moments_weights(mu, x2, neighbors, weights):
 
             wij = weights[i, k]
 
-            EG2 += wij**2*(x2[i]*x2[j] - (mu[i]**2)*(mu[j]**2))
+            EG2 += wij**2 * (x2[i] * x2[j] - (mu[i] ** 2) * (mu[j] ** 2))
 
-    EG2 += (EG**2)
+    EG2 += EG**2
 
     return EG, EG2
 
@@ -158,17 +161,15 @@ def compute_local_cov_max(node_degrees, vals):
     tot = 0.0
 
     for i in range(node_degrees.size):
-        tot += node_degrees[i]*(vals[i]**2)
+        tot += node_degrees[i] * (vals[i] ** 2)
 
-    return tot/2
+    return tot / 2
 
 
-def compute_hs(counts, neighbors, weights, num_umi,
-               model, centered=False, jobs=1):
+def compute_hs(
+    counts, neighbors, weights, num_umi, model, genes, centered=False, jobs=1
+):
 
-    genes = counts.index
-
-    counts = counts.values
     neighbors = neighbors.values
     weights = weights.values
     num_umi = num_umi.values
@@ -178,7 +179,10 @@ def compute_hs(counts, neighbors, weights, num_umi,
 
     def data_iter():
         for i in range(counts.shape[0]):
-            vals = counts[i].astype('double')
+            vals = counts[i]
+            if issparse(vals):
+                vals = np.asarray(vals.A).ravel()
+            vals = vals.astype("double")
             yield vals
 
     def initializer():
@@ -199,46 +203,34 @@ def compute_hs(counts, neighbors, weights, num_umi,
 
     if jobs > 1:
 
-        with multiprocessing.Pool(
-                processes=jobs, initializer=initializer) as pool:
+        with multiprocessing.Pool(processes=jobs, initializer=initializer) as pool:
 
             results = list(
-                tqdm(
-                    pool.imap(_map_fun_parallel, data_iter()),
-                    total=counts.shape[0]
-                )
+                tqdm(pool.imap(_map_fun_parallel, data_iter()), total=counts.shape[0])
             )
     else:
+
         def _map_fun(vals):
             return _compute_hs_inner(
-                vals, neighbors, weights, num_umi,
-                model, centered, Wtot2, D
+                vals, neighbors, weights, num_umi, model, centered, Wtot2, D
             )
-        results = list(
-            tqdm(
-                map(_map_fun, data_iter()),
-                total=counts.shape[0]
-            )
-        )
 
-    results = pd.DataFrame(results,
-                           index=genes,
-                           columns=['G', 'EG', 'stdG', 'Z', 'C']
-                           )
+        results = list(tqdm(map(_map_fun, data_iter()), total=counts.shape[0]))
 
-    results['Pval'] = norm.sf(results['Z'].values)
-    results['FDR'] = multipletests(results['Pval'], method='fdr_bh')[1]
+    results = pd.DataFrame(results, index=genes, columns=["G", "EG", "stdG", "Z", "C"])
 
-    results = results.sort_values('Z', ascending=False)
-    results.index.name = 'Gene'
+    results["Pval"] = norm.sf(results["Z"].values)
+    results["FDR"] = multipletests(results["Pval"], method="fdr_bh")[1]
 
-    results = results[['C', 'Z', 'Pval', 'FDR']]  # Remove other columns
+    results = results.sort_values("Z", ascending=False)
+    results.index.name = "Gene"
+
+    results = results[["C", "Z", "Pval", "FDR"]]  # Remove other columns
 
     return results
 
 
-def _compute_hs_inner(vals, neighbors, weights, num_umi,
-                      model, centered, Wtot2, D):
+def _compute_hs_inner(vals, neighbors, weights, num_umi, model, centered, Wtot2, D):
     """
     Note, since this is an inner function, for parallelization to work well
     none of the contents of the function can use MKL or OPENBLAS threads.
@@ -247,19 +239,15 @@ def _compute_hs_inner(vals, neighbors, weights, num_umi,
     the number of threads in numpy after it's imported
     """
 
-    if model == 'bernoulli':
-        vals = (vals > 0).astype('double')
-        mu, var, x2 = bernoulli_model.fit_gene_model(
-            vals, num_umi)
-    elif model == 'danb':
-        mu, var, x2 = danb_model.fit_gene_model(
-            vals, num_umi)
-    elif model == 'normal':
-        mu, var, x2 = normal_model.fit_gene_model(
-            vals, num_umi)
-    elif model == 'none':
-        mu, var, x2 = none_model.fit_gene_model(
-            vals, num_umi)
+    if model == "bernoulli":
+        vals = (vals > 0).astype("double")
+        mu, var, x2 = bernoulli_model.fit_gene_model(vals, num_umi)
+    elif model == "danb":
+        mu, var, x2 = danb_model.fit_gene_model(vals, num_umi)
+    elif model == "normal":
+        mu, var, x2 = normal_model.fit_gene_model(vals, num_umi)
+    elif model == "none":
+        mu, var, x2 = none_model.fit_gene_model(vals, num_umi)
     else:
         raise Exception("Invalid Model: {}".format(model))
 
@@ -273,12 +261,12 @@ def _compute_hs_inner(vals, neighbors, weights, num_umi,
     else:
         EG, EG2 = compute_moments_weights(mu, x2, neighbors, weights)
 
-    stdG = (EG2-EG*EG)**.5
+    stdG = (EG2 - EG * EG) ** 0.5
 
-    Z = (G-EG)/stdG
+    Z = (G - EG) / stdG
 
     G_max = compute_local_cov_max(D, vals)
-    C = (G - EG)/G_max
+    C = (G - EG) / G_max
 
     return [G, EG, stdG, Z, C]
 
@@ -292,6 +280,5 @@ def _map_fun_parallel(vals):
     global g_Wtot2
     global g_D
     return _compute_hs_inner(
-        vals, g_neighbors, g_weights, g_num_umi,
-        g_model, g_centered, g_Wtot2, g_D
+        vals, g_neighbors, g_weights, g_num_umi, g_model, g_centered, g_Wtot2, g_D
     )
