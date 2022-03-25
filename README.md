@@ -15,9 +15,9 @@ The choice of metric allows you to evaluate different types of gene modules:
 
 **Examples**
 
-- [Spatial Data (Mouse Cerebellum)](https://yoseflab.github.io/Hotspot/Spatial_Tutorial.html)
-- [Lineage Data (Mouse Embryogenesis)](https://yoseflab.github.io/Hotspot/Lineage_Tutorial.html)
-- [Human CD4 T cells](https://yoseflab.github.io/Hotspot/CD4_Tutorial.html)
+- [Spatial Data (Mouse Cerebellum)](https://hotspot.readthedocs.io/en/latest/Spatial_Tutorial.html)
+- [Lineage Data (Mouse Embryogenesis)](https://hotspot.readthedocs.io/en/latest/Lineage_Tutorial.html)
+- [Human CD4 T cells](https://hotspot.readthedocs.io/en/latest/CD4_Tutorial.html)
 
 **Other Links**
 
