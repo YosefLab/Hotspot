@@ -40,37 +40,38 @@ def test_models():
     adata.obs["umi_counts"] = umi_counts.values
 
     for model in ['danb', 'bernoulli', 'normal', 'none']:
-        hs = Hotspot(
-            adata,
-            model=model,
-            latent_obsm_key="latent",
-            umi_counts_obs_key="umi_counts",
-            layer_key="sparse",
-        )
-        hs.create_knn_graph(False, n_neighbors=30)
-        hs.compute_autocorrelations()
+        for lk in [None, "sparse"]:
+            hs = Hotspot(
+                adata,
+                model=model,
+                latent_obsm_key="latent",
+                umi_counts_obs_key="umi_counts",
+                layer_key=lk,
+            )
+            hs.create_knn_graph(False, n_neighbors=30)
+            hs.compute_autocorrelations()
 
-        assert isinstance(hs.results, pd.DataFrame)
-        assert hs.results.shape[0] == N_GENES
+            assert isinstance(hs.results, pd.DataFrame)
+            assert hs.results.shape[0] == N_GENES
 
-        hs.compute_local_correlations(gene_exp.index)
+            hs.compute_local_correlations(gene_exp.index)
 
-        assert isinstance(hs.local_correlation_z, pd.DataFrame)
-        assert hs.local_correlation_z.shape[0] == N_GENES
-        assert hs.local_correlation_z.shape[1] == N_GENES
+            assert isinstance(hs.local_correlation_z, pd.DataFrame)
+            assert hs.local_correlation_z.shape[0] == N_GENES
+            assert hs.local_correlation_z.shape[1] == N_GENES
 
-        hs.create_modules(min_gene_threshold=2, fdr_threshold=1)
+            hs.create_modules(min_gene_threshold=2, fdr_threshold=1)
 
-        assert isinstance(hs.modules, pd.Series)
-        assert (hs.modules.index & gene_exp.index).size == N_GENES
+            assert isinstance(hs.modules, pd.Series)
+            assert (hs.modules.index & gene_exp.index).size == N_GENES
 
-        assert isinstance(hs.linkage, np.ndarray)
-        assert hs.linkage.shape == (N_GENES-1, 4)
+            assert isinstance(hs.linkage, np.ndarray)
+            assert hs.linkage.shape == (N_GENES-1, 4)
 
-        hs.calculate_module_scores()
+            hs.calculate_module_scores()
 
-        assert isinstance(hs.module_scores, pd.DataFrame)
-        assert (hs.module_scores.index == gene_exp.columns).all()
+            assert isinstance(hs.module_scores, pd.DataFrame)
+            assert (hs.module_scores.index == gene_exp.columns).all()
 
 
 def test_filter_genes():
