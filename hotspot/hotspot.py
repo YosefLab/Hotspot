@@ -142,15 +142,20 @@ class Hotspot:
     @staticmethod
     def _counts_from_anndata(adata, layer_key, dense=False, pandas=False):
         counts = adata.layers[layer_key] if layer_key is not None else adata.X
+        is_sparse = issparse(counts)
         # handles adata view
+        # as sparse matrix in view is just a sparse matrix, while dense is ArrayView
         if not issparse(counts):
             counts = np.asarray(counts)
         counts = counts.transpose()
 
         if dense:
-            counts = counts.A
-            if pandas:
-                counts = pd.DataFrame(counts, index=adata.var_names, columns=adata.obs_names)
+            counts = counts.A if is_sparse else counts
+            is_sparse = False
+        if pandas and is_sparse:
+            raise ValueError("Set dense=True to return pandas output")
+        if pandas and not is_sparse:
+            counts = pd.DataFrame(counts, index=adata.var_names, columns=adata.obs_names)            
 
         return counts
 
