@@ -198,6 +198,12 @@ class Hotspot:
         umi_counts : pandas.Series, optional
             Total umi count per cell.  Used as a size factor.
             If omitted, the sum over genes in the counts matrix is used
+
+        Examples
+        --------
+        >>> gene_exp = pd.read_csv(path, index_col=0) # genes by cells
+        >>> latent = pd.read_csv(latent_path, index_col=0) # cells by dims
+        >>> hs = hotspot.Hotspot.legacy_init(gene_exp, model="normal", latent=latent)
         """
 
         if latent is None and distances is None and tree is None:
