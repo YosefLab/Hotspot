@@ -48,6 +48,8 @@ pip install hotspotsc==0.9.1
 
 The old documentation for that version can be found [here](https://yoseflab.github.io/Hotspot/), but installation will still be `pip install hotspotsc==0.9.1`.
 
+The old initialization for v0.9.1 has now moved to `hotspot.Hotspot.legacy_init`, see the docs for usage.
+
 
 # Usage
 
