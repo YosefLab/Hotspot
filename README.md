@@ -33,7 +33,13 @@ The choice of metric allows you to evaluate different types of gene modules:
 Hotspot is installed directly fro mthe git repository using the following command:
 
 ```
-pip install git+https://github.com/yoseflab/Hotspot.git
+pip install hotspotsc
+```
+
+Hotspot can be imported as
+
+```
+import hotspot
 ```
 
 # Usage
@@ -189,7 +195,7 @@ The output is a pandas Series that maps gene to module number.  Unassigned genes
 
 Correlation modules can be visualized by running `hs.plot_local_correlations()`:
 
-<img src="https://yoseflab.github.io/Hotspot/_images/corr_plot.png" alt="Local Correlation Plot" width="500">
+<img src="https://hotspot.readthedocs.io/en/latest/_images/CD4_Tutorial_29_0.png" alt="Local Correlation Plot" width="500">
 
 
 ## Compute summary per-cell module scores
@@ -215,4 +221,4 @@ The output is a pandas DataFrame (cells x modules) and is also saved in `hs.modu
 
 These can then be plotted onto other visual representations of the cells.  For example, for spatial modules (from data in [Rodriques et al, 2019](https://www.ncbi.nlm.nih.gov/pubmed/30923225)) this looks like:
 
-<img src="https://yoseflab.github.io/Hotspot/_images/module_scores.png" alt="Spatial Gene Modules" width="500">
+<img src="https://hotspot.readthedocs.io/en/latest/_images/Spatial_Tutorial_23_0.png" alt="Spatial Gene Modules" width="500">
