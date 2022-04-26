@@ -46,6 +46,8 @@ Starting with v1.0, Hotspot uses the [AnnData](https://anndata.readthedocs.io/en
 pip install hotspotsc==0.9.1
 ```
 
+The old documentation for that version can be found [here](https://yoseflab.github.io/Hotspot/), but installation will still be `pip install hotspotsc==0.9.1`.
+
 
 # Usage
 
