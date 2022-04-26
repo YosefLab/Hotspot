@@ -30,7 +30,7 @@ The choice of metric allows you to evaluate different types of gene modules:
 
 # Installation
 
-Hotspot is installed directly fro mthe git repository using the following command:
+Hotspot is installed directly from PyPI using the following command:
 
 ```
 pip install hotspotsc
