@@ -106,3 +106,9 @@ def test_filter_genes():
         hs = Hotspot(
             adata, model='normal', latent_obsm_key="latent", umi_counts_obs_key="umi_counts"
         )
+
+    hs = Hotspot.legacy_init(
+        gene_exp, model='normal', latent=latent, umi_counts=umi_counts
+    )
+
+    assert hs.counts.shape[0] == N_GENES
