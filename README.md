@@ -40,6 +40,13 @@ Hotspot can be imported as
 import hotspot
 ```
 
+Starting with v1.0, Hotspot uses the [AnnData](https://anndata.readthedocs.io/en/latest/) data object. If you'd like to use the old version of Hotspot then:
+
+```
+pip install hotspots==0.9.1
+```
+
+
 # Usage
 
 The following steps are used when analyzing data in Hotspot:
