@@ -43,7 +43,7 @@ import hotspot
 Starting with v1.0, Hotspot uses the [AnnData](https://anndata.readthedocs.io/en/latest/) data object. If you'd like to use the old version of Hotspot then:
 
 ```
-pip install hotspots==0.9.1
+pip install hotspotsc==0.9.1
 ```
 
 
