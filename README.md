@@ -106,13 +106,13 @@ The model is used to fit per-cell expectations for each gene assuming no correla
 
 ### Choosing different metrics
 
-Above we used `latent` as the input option.  This assumes that cells are in an N-dimensional space and similarity between cells is evaluated by computing euclidean distances in this space.  Either the results of a dimensionality reduction or modeling procedure can be input here, or when working with spatial data, the per-cell coordinates.
+Above we used `latent_obsm_key` as the input option.  This assumes that cells are in an N-dimensional space and similarity between cells is evaluated by computing euclidean distances in this space.  Either the results of a dimensionality reduction or modeling procedure can be input here, or when working with spatial data, the per-cell coordinates.
 
-Alternately, instead of `latent`, you can specify either `tree` or `distances`.
+Alternately, instead of `latent_obsm_key`, you can specify either `tree` or `distances_obsp_key`.
 
 `tree` is used for a developmental lineage.  In this form, `tree` should be an `ete3.TreeNode` object representing the root of a Tree with each cell as its leaves.  This could be constructed programmatically (see ete3's documentation for details) or if your lineage is stored in a Newick file format, you can load it into an ete3.TreeNode object by running `ete3.Tree('my_newick.txt')`.  Note: leaf nodes in the tree must have names that match the column labels in the `counts` input (e.g., cell barcodes).
 
-`distances` is used to specify cell-cell distances directly.  The value entered should be a Cells x Cells pandas DataFrame.
+`distances_obsp_key` is used to specify cell-cell distances directly.  The value entered should be a Cells x Cells matrix in `adata.obsp`.
 
 
 ## Compute the KNN graph
