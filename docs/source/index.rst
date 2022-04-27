@@ -62,7 +62,7 @@ following command:
 
 ::
 
-   pip install git+https://github.com/yoseflab/Hotspot.git
+   pip install hotspotsc
 
 Usage
 =====
@@ -96,15 +96,21 @@ For example:
 ::
 
    import hotspot
-   hs = hotspot.Hotspot(counts, model='danb', latent=pca_results, umi_counts=umi_counts)
+   hs = hotspot.Hotspot(
+       adata,
+       layer_key="counts",
+       model='danb',
+       latent_obsm_key="X_pca",
+       umi_counts_obs_key="total_counts"
+   )
 
 In the example above:
 
--  ``counts`` is a Genes X Cells pandas DataFrame of gene counts
--  ``model`` 'danb' selects the umi-adjusted negative binomial model
--  ``latent`` is a Cells x Components pandas DataFrame (the PCA-reduced
-   space)
--  ``umi_counts`` is a pandas Series with UMI count for each cell
+- ``adata`` is a [AnnData](https://anndata.readthedocs.io/en/latest/) object of cells by genes
+- ``layer_key`` is the layer of `adata` containing count information
+- ``model`` 'danb' selects the umi-adjusted negative binomial model
+- ``latent_obsm_key`` is the `.obsm` key of `adata` containing Cells x Components matrix (the PCA-reduced space)
+- ``umi_counts_obs_key`` is the `.obs` key of `adata` with the UMI count for each cell
 
 Alternative choices for 'model'
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -126,14 +132,14 @@ autocorrelation and gene-gene local correlations. The choices are:
 Choosing different metrics
 ~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Above we used ``latent`` as the input option. This assumes that cells
-are in an N-dimensional space and similarity between cells is evaluated
+Above we used ``latent_obsm_key`` as the input option. This assumes that cells
+are in an K-dimensional space and similarity between cells is evaluated
 by computing euclidean distances in this space. Either the results of a
 dimensionality reduction or modeling procedure can be input here, or
 when working with spatial data, the per-cell coordinates.
 
-Alternately, instead of ``latent``, you can specify either ``tree`` or
-``distances``.
+Alternately, instead of ``latent_obsm_key``, you can specify either ``tree`` or
+``distances_obsp_key``.
 
 ``tree`` is used for a developmental lineage. In this form, ``tree``
 should be an ``ete3.TreeNode`` object representing the root of a Tree
@@ -144,8 +150,8 @@ running ``ete3.Tree('my_newick.txt')``. Note: leaf nodes in the tree
 must have names that match the column labels in the ``counts`` input
 (e.g., cell barcodes).
 
-``distances`` is used to specify cell-cell distances directly. The value
-entered should be a Cells x Cells pandas DataFrame.
+``distances_obsp_key`` is used to specify cell-cell distances directly. The value
+entered should be a Cells x Cells matrix in ``adata.obsp``.
 
 Compute the KNN graph
 ---------------------
