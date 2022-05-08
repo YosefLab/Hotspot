@@ -90,16 +90,6 @@ class Hotspot:
                 "Both `distances_obsp_key` and `tree` provided - only one of these should be provided."
             )
 
-        if distances is not None:
-            if issparse(distances):
-                distances = pd.DataFrame.sparse.from_spmatrix(
-                    distances, index=adata.obs_names, columns=adata.obs_names
-                )
-            else:
-                distances = pd.DataFrame(
-                    distances, index=adata.obs_names, columns=adata.obs_names
-                )
-
         if latent is not None:
             latent = pd.DataFrame(latent, index=adata.obs_names)
 
