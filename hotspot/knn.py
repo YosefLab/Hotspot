@@ -61,10 +61,14 @@ def neighbors_and_weights_from_distances(
     weights:  pandas.Dataframe num_cells x n_neighbors
 
     """
-
+    # detects if distances are sparse in the DataFrame
+    try:
+        dist_mat = distances.sparse.to_coo()
+    except AttributeError:
+        dist_mat = distances.values
     nbrs = NearestNeighbors(
         n_neighbors=n_neighbors, algorithm="brute", metric="precomputed"
-    ).fit(distances.values)
+    ).fit(dist_mat)
     dist, ind = nbrs.kneighbors()
 
     weights = compute_weights(dist, neighborhood_factor=neighborhood_factor)

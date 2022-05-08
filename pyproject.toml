@@ -29,7 +29,7 @@ packages = [
   {include = "hotspot"},
 ]
 readme = "README.md"
-version = "1.1"
+version = "1.1.1"
 
 [tool.poetry.dependencies]
 pytest = {version = ">=5.0", optional = true}

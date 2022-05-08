@@ -91,10 +91,14 @@ class Hotspot:
             )
 
         if distances is not None:
-            assert not issparse(distances)
-            distances = pd.DataFrame(
-                distances, index=adata.obs_names, columns=adata.obs_names
-            )
+            if issparse(distances):
+                distances = pd.DataFrame.sparse.from_spmatrix(
+                    distances, index=adata.obs_names, columns=adata.obs_names
+                )
+            else:
+                distances = pd.DataFrame(
+                    distances, index=adata.obs_names, columns=adata.obs_names
+                )
 
         if latent is not None:
             latent = pd.DataFrame(latent, index=adata.obs_names)
@@ -260,7 +264,7 @@ class Hotspot:
         input_adata.obs[tc_key] = umi_counts.values
         dkey = "distances"
         if distances is not None:
-            input_adata.obsp[dkey] = np.asarray(distances)
+            input_adata.obsp[dkey] = distances
             dist_input = True
         else:
             dist_input = False
