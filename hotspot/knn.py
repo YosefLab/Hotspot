@@ -29,7 +29,8 @@ def neighbors_and_weights(data, n_neighbors=30, neighborhood_factor=3, approx_ne
     if approx_neighbors:
         # pynndescent first neighbor is self, unlike sklearn
         index = NNDescent(coords, n_neighbors=n_neighbors + 1)
-        ind[:, 1:], dist[:, 1:] = index.neighbor_graph
+        ind, dist = index.neighbor_graph
+        ind, dist = ind[:, 1:], dist[:, 1:]
     else:
         nbrs = NearestNeighbors(n_neighbors=n_neighbors,
                         algorithm="ball_tree").fit(coords)
