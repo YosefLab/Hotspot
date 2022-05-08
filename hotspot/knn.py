@@ -5,6 +5,7 @@ from math import ceil
 from numba import jit
 from tqdm import tqdm
 from pynndescent import NNDescent
+import warnings
 
 
 def neighbors_and_weights(data, n_neighbors=30, neighborhood_factor=3, approx_neighbors=True):
@@ -26,8 +27,9 @@ def neighbors_and_weights(data, n_neighbors=30, neighborhood_factor=3, approx_ne
     coords = data.values
 
     if approx_neighbors:
-        index = NNDescent(coords, n_neighbors=n_neighbors)
-        ind, dist = index.neighbor_graph
+        # pynndescent first neighbor is self, unlike sklearn
+        index = NNDescent(coords, n_neighbors=n_neighbors + 1)
+        ind[:, 1:], dist[:, 1:] = index.neighbor_graph
     else:
         nbrs = NearestNeighbors(n_neighbors=n_neighbors,
                         algorithm="ball_tree").fit(coords)
@@ -64,7 +66,13 @@ def neighbors_and_weights_from_distances(
     nbrs = NearestNeighbors(
         n_neighbors=n_neighbors, algorithm="brute", metric="precomputed"
     ).fit(distances)
-    dist, ind = nbrs.kneighbors()
+    try:
+        dist, ind = nbrs.kneighbors()
+    # already is a neighbors graph
+    except ValueError:
+        nn = np.asarray((distances[0] > 0).sum())
+        warnings.warn(f"Provided cell-cell distance graph is likely a {nn}-neighbors graph. Using {nn} precomputed neighbors.")
+        dist, ind = nbrs.kneighbors(n_neighbors=nn-1)
 
     weights = compute_weights(dist, neighborhood_factor=neighborhood_factor)
 
