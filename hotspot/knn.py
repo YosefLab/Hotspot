@@ -64,6 +64,9 @@ def neighbors_and_weights_from_distances(
     weights:  pandas.Dataframe num_cells x n_neighbors
 
     """
+    if isinstance(distances, pd.DataFrame):
+        distances = distances.values
+
     nbrs = NearestNeighbors(
         n_neighbors=n_neighbors, algorithm="brute", metric="precomputed"
     ).fit(distances)
