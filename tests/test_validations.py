@@ -4,6 +4,7 @@ from hotspot import sim_data
 from hotspot import Hotspot
 import anndata
 import pytest
+import scanpy as sc
 
 from scipy.sparse import csc_matrix
 
@@ -72,6 +73,18 @@ def test_models():
 
             assert isinstance(hs.module_scores, pd.DataFrame)
             assert (hs.module_scores.index == gene_exp.columns).all()
+
+    # test precomputed distance matrix
+    sc.pp.neighbors(adata, use_rep="latent", n_neighbors=30)
+    hs = Hotspot(
+        adata,
+        model="normal",
+        umi_counts_obs_key="umi_counts",
+        layer_key="sparse",
+        distances_obsp_key="distances"
+    )
+    hs.create_knn_graph(False, n_neighbors=30)
+    hs.compute_autocorrelations()
 
 
 def test_filter_genes():

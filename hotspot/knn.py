@@ -5,6 +5,7 @@ from math import ceil
 from numba import jit
 from tqdm import tqdm
 from pynndescent import NNDescent
+import warnings
 
 
 def neighbors_and_weights(data, n_neighbors=30, neighborhood_factor=3, approx_neighbors=True):
@@ -26,8 +27,10 @@ def neighbors_and_weights(data, n_neighbors=30, neighborhood_factor=3, approx_ne
     coords = data.values
 
     if approx_neighbors:
-        index = NNDescent(coords, n_neighbors=n_neighbors)
+        # pynndescent first neighbor is self, unlike sklearn
+        index = NNDescent(coords, n_neighbors=n_neighbors + 1)
         ind, dist = index.neighbor_graph
+        ind, dist = ind[:, 1:], dist[:, 1:]
     else:
         nbrs = NearestNeighbors(n_neighbors=n_neighbors,
                         algorithm="ball_tree").fit(coords)
@@ -45,7 +48,7 @@ def neighbors_and_weights(data, n_neighbors=30, neighborhood_factor=3, approx_ne
 
 
 def neighbors_and_weights_from_distances(
-    distances, n_neighbors=30, neighborhood_factor=3
+    distances, cell_index, n_neighbors=30, neighborhood_factor=3
 ):
     """
     Computes nearest neighbors and associated weights using
@@ -61,15 +64,23 @@ def neighbors_and_weights_from_distances(
     weights:  pandas.Dataframe num_cells x n_neighbors
 
     """
+    if isinstance(distances, pd.DataFrame):
+        distances = distances.values
 
     nbrs = NearestNeighbors(
         n_neighbors=n_neighbors, algorithm="brute", metric="precomputed"
-    ).fit(distances.values)
-    dist, ind = nbrs.kneighbors()
+    ).fit(distances)
+    try:
+        dist, ind = nbrs.kneighbors()
+    # already is a neighbors graph
+    except ValueError:
+        nn = np.asarray((distances[0] > 0).sum())
+        warnings.warn(f"Provided cell-cell distance graph is likely a {nn}-neighbors graph. Using {nn} precomputed neighbors.")
+        dist, ind = nbrs.kneighbors(n_neighbors=nn-1)
 
     weights = compute_weights(dist, neighborhood_factor=neighborhood_factor)
 
-    ind = pd.DataFrame(ind, index=distances.index)
+    ind = pd.DataFrame(ind, index=cell_index)
     neighbors = ind
     weights = pd.DataFrame(
         weights, index=neighbors.index, columns=neighbors.columns
