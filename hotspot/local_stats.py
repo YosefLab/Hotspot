@@ -165,6 +165,21 @@ def compute_local_cov_max(node_degrees, vals):
 
     return tot / 2
 
+def initializer(neighbors, weights, num_umi, model, centered, Wtot2, D):
+    global g_neighbors
+    global g_weights
+    global g_num_umi
+    global g_model
+    global g_centered
+    global g_Wtot2
+    global g_D
+    g_neighbors = neighbors
+    g_weights = weights
+    g_num_umi = num_umi
+    g_model = model
+    g_centered = centered
+    g_Wtot2 = Wtot2
+    g_D = D
 
 def compute_hs(
     counts, neighbors, weights, num_umi, model, genes, centered=False, jobs=1
@@ -185,28 +200,20 @@ def compute_hs(
             vals = vals.astype("double")
             yield vals
 
-    def initializer():
-        global g_neighbors
-        global g_weights
-        global g_num_umi
-        global g_model
-        global g_centered
-        global g_Wtot2
-        global g_D
-        g_neighbors = neighbors
-        g_weights = weights
-        g_num_umi = num_umi
-        g_model = model
-        g_centered = centered
-        g_Wtot2 = Wtot2
-        g_D = D
-
     if jobs > 1:
-
-        with multiprocessing.Pool(processes=jobs, initializer=initializer) as pool:
-
+        with multiprocessing.Pool(
+            processes=jobs, 
+            initializer=initializer, 
+            initargs=[neighbors, weights, num_umi, model, centered, Wtot2, D]
+        ) as pool:
             results = list(
-                tqdm(pool.imap(_map_fun_parallel, data_iter()), total=counts.shape[0])
+                tqdm(
+                    pool.imap(
+                        _map_fun_parallel,
+                        data_iter()
+                    ), 
+                    total=counts.shape[0]
+                )
             )
     else:
 

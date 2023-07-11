@@ -582,6 +582,24 @@ def _compute_hs_pairs_inner_centered_cond_sym(
     return (lc, Z)
 
 
+def initializer1(counts, neighbors, weights, num_umi, model, centered, Wtot2, D):
+    global g_counts
+    global g_neighbors
+    global g_weights
+    global g_num_umi
+    global g_model
+    global g_centered
+    global g_Wtot2
+    global g_D
+    g_counts = counts
+    g_neighbors = neighbors
+    g_weights = weights
+    g_num_umi = num_umi
+    g_model = model
+    g_centered = centered
+    g_Wtot2 = Wtot2
+    g_D = D
+
 def compute_hs_pairs(counts, neighbors, weights,
                      num_umi, model, centered=False, jobs=1):
 
@@ -595,32 +613,18 @@ def compute_hs_pairs(counts, neighbors, weights,
     D = compute_node_degree(neighbors, weights)
     Wtot2 = (weights**2).sum()
 
-    def initializer():
-        global g_neighbors
-        global g_weights
-        global g_num_umi
-        global g_model
-        global g_centered
-        global g_Wtot2
-        global g_D
-        global g_counts
-        g_counts = counts
-        g_neighbors = neighbors
-        g_weights = weights
-        g_num_umi = num_umi
-        g_model = model
-        g_centered = centered
-        g_Wtot2 = Wtot2
-        g_D = D
-
     if jobs > 1:
-
         with multiprocessing.Pool(
-                processes=jobs, initializer=initializer) as pool:
-
+            processes=jobs, 
+            initializer=initializer1, 
+            initargs=[counts, neighbors, weights, num_umi, model, centered, Wtot2, D]
+        ) as pool:
             results = list(
                 tqdm(
-                    pool.imap(_map_fun_parallel_pairs, range(counts.shape[0])),
+                    pool.imap(
+                        _map_fun_parallel_pairs, 
+                        range(counts.shape[0])
+                    ), 
                     total=counts.shape[0]
                 )
             )
@@ -657,6 +661,17 @@ def compute_hs_pairs(counts, neighbors, weights,
 
     return lcs, lc_zs
 
+def initializer2(counts, neighbors, weights, Wtot2, D):
+    global g_counts
+    global g_neighbors
+    global g_weights
+    global g_Wtot2
+    global g_D
+    g_counts = counts
+    g_neighbors = neighbors
+    g_weights = weights
+    g_Wtot2 = Wtot2
+    g_D = D
 
 def compute_hs_pairs_centered(counts, neighbors, weights,
                               num_umi, model, jobs=1):
@@ -673,28 +688,20 @@ def compute_hs_pairs_centered(counts, neighbors, weights,
 
     counts = create_centered_counts(counts, model, num_umi)
 
-    def initializer():
-        global g_neighbors
-        global g_weights
-        global g_Wtot2
-        global g_D
-        global g_counts
-        g_counts = counts
-        g_neighbors = neighbors
-        g_weights = weights
-        g_Wtot2 = Wtot2
-        g_D = D
-
     pairs = list(itertools.combinations(range(counts.shape[0]), 2))
 
     if jobs > 1:
-
         with multiprocessing.Pool(
-                processes=jobs, initializer=initializer) as pool:
-
+            processes=jobs, 
+            initializer=initializer2,
+            initargs=[counts, neighbors, weights, Wtot2, D]
+        ) as pool:
             results = list(
                 tqdm(
-                    pool.imap(_map_fun_parallel_pairs_centered, pairs),
+                    pool.imap(
+                        _map_fun_parallel_pairs_centered, 
+                        pairs
+                    ),
                     total=len(pairs)
                 )
             )
@@ -725,6 +732,17 @@ def compute_hs_pairs_centered(counts, neighbors, weights,
     return lcs, lc_zs
 
 
+def initializer3(counts, neighbors, weights, eg2s):
+    global g_counts
+    global g_neighbors
+    global g_weights
+    global g_eg2s
+    g_counts = counts
+    g_neighbors = neighbors
+    g_weights = weights
+    g_eg2s = eg2s
+
+
 def compute_hs_pairs_centered_cond(counts, neighbors, weights,
                                    num_umi, model, jobs=1):
 
@@ -746,26 +764,20 @@ def compute_hs_pairs_centered_cond(counts, neighbors, weights,
         ]
     )
 
-    def initializer():
-        global g_neighbors
-        global g_weights
-        global g_counts
-        global g_eg2s
-        g_counts = counts
-        g_neighbors = neighbors
-        g_weights = weights
-        g_eg2s = eg2s
-
     pairs = list(itertools.combinations(range(counts.shape[0]), 2))
 
     if jobs > 1:
-
         with multiprocessing.Pool(
-                processes=jobs, initializer=initializer) as pool:
-
+            processes=jobs, 
+            initializer=initializer3,
+            initargs=[counts, neighbors, weights, eg2s]
+        ) as pool:
             results = list(
                 tqdm(
-                    pool.imap(_map_fun_parallel_pairs_centered_cond, pairs),
+                    pool.imap(
+                        _map_fun_parallel_pairs_centered_cond,
+                        pairs
+                    ),
                     total=len(pairs)
                 )
             )
