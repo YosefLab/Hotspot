@@ -55,7 +55,7 @@ scanpy = {version = "*", optional = true}
 
 [tool.poetry.extras]
 test = ["pytest", "scanpy"]
-docs=["sphinx-book-theme", "nbsphinx", "sphinx>", "ipython"]
+docs=["sphinx-book-theme", "nbsphinx", "sphinx", "ipython"]
 
 [tool.poetry.dev-dependencies]
 
