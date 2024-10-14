@@ -129,7 +129,7 @@ class Hotspot:
         if model not in valid_models:
             raise ValueError("Input `model` should be one of {}".format(valid_models))
 
-        valid_genes = counts.sum(axis=1) > 0
+        valid_genes = counts.sum(axis=1) != 0
         n_invalid = counts.shape[0] - valid_genes.sum()
         if n_invalid > 0:
             raise ValueError(
