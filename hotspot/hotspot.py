@@ -96,7 +96,7 @@ class Hotspot:
         # because of transpose we check if its csr
         if issparse(counts) and not isinstance(counts, csr_matrix):
             warnings.warn(
-                "Hotspot will work faster when counts are a csc sparse matrix."
+                "Hotspot will work faster when counts are a csr sparse matrix."
             )
 
         if tree is not None:
