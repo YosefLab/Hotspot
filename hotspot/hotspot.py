@@ -129,17 +129,24 @@ class Hotspot:
         if model not in valid_models:
             raise ValueError("Input `model` should be one of {}".format(valid_models))
 
-        # valid_genes = counts.sum(axis=1) > 0
-
         if issparse(counts):
-            valid_genes = ~np.array(counts.getnnz(axis=1) == 0)
+            # For a sparse matrix, check if all values in each row are identical
+            # A row (gene) is considered valid if it has more than one unique value.
+            row_min = counts.min(axis=1).toarray().flatten()
+            row_max = counts.max(axis=1).toarray().flatten()
+            valid_genes = (
+                row_min != row_max
+            )  # Valid if min and max are not equal, indicating variation
         else:
-            valid_genes = ~np.all(counts == 0, axis=1)
+            # For a dense matrix, check if all values in each row are identical
+            valid_genes = ~(np.all(counts == counts[:, [0]], axis=1))
+
+        # valid_genes is now a boolean array indicating which rows (genes) have non-identical values.
 
         n_invalid = counts.shape[0] - valid_genes.sum()
         if n_invalid > 0:
             raise ValueError(
-                "\nDetected all zero genes. Please filter adata and reinitialize."
+                "\nDetected genes with zero variance. Please filter adata and reinitialize."
             )
 
         self.adata = adata
