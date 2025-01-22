@@ -196,7 +196,7 @@ def compute_hs(
         for i in range(counts.shape[0]):
             vals = counts[i]
             if issparse(vals):
-                vals = np.asarray(vals.A).ravel()
+                vals = vals.toarray().ravel()
             vals = vals.astype("double")
             yield vals
 
