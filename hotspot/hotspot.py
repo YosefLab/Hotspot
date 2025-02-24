@@ -298,7 +298,7 @@ class Hotspot:
         counts = counts.transpose()
 
         if dense:
-            counts = counts.A if is_sparse else counts
+            counts = counts.toarray() if is_sparse else counts
             is_sparse = False
         if pandas and is_sparse:
             raise ValueError("Set dense=True to return pandas output")

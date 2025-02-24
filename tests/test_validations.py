@@ -64,7 +64,7 @@ def test_models():
             hs.create_modules(min_gene_threshold=2, fdr_threshold=1)
 
             assert isinstance(hs.modules, pd.Series)
-            assert (hs.modules.index & gene_exp.index).size == N_GENES
+            assert hs.modules.index.intersection(gene_exp.index).size == N_GENES
 
             assert isinstance(hs.linkage, np.ndarray)
             assert hs.linkage.shape == (N_GENES-1, 4)
