@@ -44,7 +44,7 @@ extensions = [
     'sphinx.ext.viewcode',
     'sphinx.ext.githubpages',
     'sphinx.ext.napoleon',
-    'nbsphinx',
+    'myst_nb',
 ]
 
 #autodoc settings
@@ -90,7 +90,6 @@ pygments_style = "default"
 
 # nbsphinx specific settings
 exclude_patterns = ["_build", "**.ipynb_checkpoints"]
-nbsphinx_execute = "never"
 
 
 # -- Options for HTML output -------------------------------------------------
