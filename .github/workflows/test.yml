@@ -1,4 +1,4 @@
-name: Hotspot
+name: hotspot
 
 on:
   push:
