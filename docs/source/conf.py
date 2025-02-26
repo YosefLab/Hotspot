@@ -44,7 +44,7 @@ extensions = [
     'sphinx.ext.viewcode',
     'sphinx.ext.githubpages',
     'sphinx.ext.napoleon',
-    'nbsphinx',
+    'myst_nb',
 ]
 
 #autodoc settings
@@ -64,6 +64,7 @@ napoleon_use_admonition_for_references = False
 napoleon_use_ivar = False
 napoleon_use_param = True
 napoleon_use_rtype = True
+nb_execution_mode = "off"
 
 # Add any paths that contain templates here, relative to this directory.
 templates_path = ['_templates']
@@ -90,7 +91,6 @@ pygments_style = "default"
 
 # nbsphinx specific settings
 exclude_patterns = ["_build", "**.ipynb_checkpoints"]
-nbsphinx_execute = "never"
 
 
 # -- Options for HTML output -------------------------------------------------
