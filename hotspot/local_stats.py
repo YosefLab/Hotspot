@@ -187,9 +187,10 @@ def compute_hs(
 ):
 
     if use_gpu:
-        return _compute_hs_gpu(
+        results = _compute_hs_gpu(
             counts, neighbors, weights, num_umi, model, genes, centered
         )
+        return _postprocess_results(results)
 
     neighbors = neighbors.values
     weights = weights.values
@@ -232,14 +233,15 @@ def compute_hs(
 
     results = pd.DataFrame(results, index=genes, columns=["G", "EG", "stdG", "Z", "C"])
 
+    return _postprocess_results(results)
+
+
+def _postprocess_results(results):
     results["Pval"] = norm.sf(results["Z"].values)
     results["FDR"] = multipletests(results["Pval"], method="fdr_bh")[1]
-
     results = results.sort_values("Z", ascending=False)
     results.index.name = "Gene"
-
-    results = results[["C", "Z", "Pval", "FDR"]]  # Remove other columns
-
+    results = results[["C", "Z", "Pval", "FDR"]]
     return results
 
 
@@ -312,7 +314,7 @@ def _local_cov_weights_gpu(vals_gpu, W):
     return (vals_gpu * smoothed_T.T).sum(axis=1)
 
 
-def _compute_moments_weights_gpu(cp, mu_gpu, x2_gpu, W, W_sq):
+def _compute_moments_weights_gpu(mu_gpu, x2_gpu, W, W_sq):
     """GPU batch of compute_moments_weights for all genes at once."""
     # EG[g] = mu[g] . (W @ mu[g])
     EG = (mu_gpu * (W @ mu_gpu.T).T).sum(axis=1)
@@ -348,7 +350,7 @@ def _compute_hs_gpu(counts, neighbors, weights, num_umi, model, genes, centered)
     All genes are processed in parallel via sparse matrix multiplication.
     """
     import cupy as cp
-    from .gpu import _require_gpu, _build_sparse_weight_matrix, _build_sparse_weight_sq_matrix
+    from .gpu import _require_gpu, _build_sparse_weight_matrix
 
     _require_gpu()
 
@@ -362,22 +364,26 @@ def _compute_hs_gpu(counts, neighbors, weights, num_umi, model, genes, centered)
     D = compute_node_degree(neighbors_np, weights_np)
     Wtot2 = (weights_np ** 2).sum()
 
+    if issparse(counts):
+        counts_dense = counts.toarray()
+    else:
+        counts_dense = np.asarray(counts)
+
     all_vals = np.zeros((N_genes, N_cells), dtype="double")
-    all_mu = np.zeros((N_genes, N_cells), dtype="double")
-    all_x2 = np.zeros((N_genes, N_cells), dtype="double")
+    if not centered:
+        all_mu = np.zeros((N_genes, N_cells), dtype="double")
+        all_x2 = np.zeros((N_genes, N_cells), dtype="double")
 
     for i in range(N_genes):
-        raw = counts[i]
-        if issparse(raw):
-            raw = raw.toarray().ravel()
-        raw = np.asarray(raw).ravel().astype("double")
+        raw = counts_dense[i].astype("double")
 
         vals, mu, var, x2 = _fit_gene(raw, model, num_umi_np)
         if centered:
             vals = center_values(vals, mu, var)
+        else:
+            all_mu[i] = mu
+            all_x2[i] = x2
         all_vals[i] = vals
-        all_mu[i] = mu
-        all_x2[i] = x2
 
     vals_gpu = cp.asarray(all_vals)
     D_gpu = cp.asarray(D)
@@ -391,10 +397,10 @@ def _compute_hs_gpu(counts, neighbors, weights, num_umi, model, genes, centered)
     else:
         mu_gpu = cp.asarray(all_mu)
         x2_gpu = cp.asarray(all_x2)
-        W_sq = _build_sparse_weight_sq_matrix(
-            neighbors_np, weights_np, shape=(N_cells, N_cells)
+        W_sq = _build_sparse_weight_matrix(
+            neighbors_np, weights_np, shape=(N_cells, N_cells), square=True
         )
-        EG, EG2 = _compute_moments_weights_gpu(cp, mu_gpu, x2_gpu, W, W_sq)
+        EG, EG2 = _compute_moments_weights_gpu(mu_gpu, x2_gpu, W, W_sq)
 
     stdG = (EG2 - EG * EG) ** 0.5
     Z = (G_stats - EG) / stdG
@@ -402,18 +408,10 @@ def _compute_hs_gpu(counts, neighbors, weights, num_umi, model, genes, centered)
     G_max = _compute_local_cov_max_gpu(D_gpu, vals_gpu)
     C = (G_stats - EG) / G_max
 
-    results = pd.DataFrame(
+    return pd.DataFrame(
         {
             "G": cp.asnumpy(G_stats), "EG": cp.asnumpy(EG),
             "stdG": cp.asnumpy(stdG), "Z": cp.asnumpy(Z), "C": cp.asnumpy(C),
         },
         index=genes,
     )
-
-    results["Pval"] = norm.sf(results["Z"].values)
-    results["FDR"] = multipletests(results["Pval"], method="fdr_bh")[1]
-    results = results.sort_values("Z", ascending=False)
-    results.index.name = "Gene"
-    results = results[["C", "Z", "Pval", "FDR"]]
-
-    return results

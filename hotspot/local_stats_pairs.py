@@ -9,7 +9,7 @@ from . import danb_model
 from . import bernoulli_model
 from . import normal_model
 from . import none_model
-from .local_stats import compute_local_cov_max
+from .local_stats import compute_local_cov_max, _fit_gene
 from .knn import compute_node_degree
 from .utils import center_values
 
@@ -449,25 +449,7 @@ def _compute_hs_pairs_inner(row_i, counts, neighbors, weights, num_umi,
     lc_out = np.zeros(counts.shape[0])
     lc_z_out = np.zeros(counts.shape[0])
 
-    if model == 'bernoulli':
-        vals_x = (vals_x > 0).astype('double')
-        mu_x, var_x, x2_x = bernoulli_model.fit_gene_model(
-            vals_x, num_umi)
-
-    elif model == 'danb':
-        mu_x, var_x, x2_x = danb_model.fit_gene_model(
-            vals_x, num_umi)
-
-    elif model == 'normal':
-        mu_x, var_x, x2_x = normal_model.fit_gene_model(
-            vals_x, num_umi)
-
-    elif model == 'none':
-        mu_x, var_x, x2_x = none_model.fit_gene_model(
-            vals_x, num_umi)
-
-    else:
-        raise Exception("Invalid Model: {}".format(model))
+    vals_x, mu_x, var_x, x2_x = _fit_gene(vals_x, model, num_umi)
 
     if centered:
         vals_x = center_values(vals_x, mu_x, var_x)
@@ -479,25 +461,7 @@ def _compute_hs_pairs_inner(row_i, counts, neighbors, weights, num_umi,
 
         vals_y = counts[row_j]
 
-        if model == 'bernoulli':
-            vals_y = (vals_y > 0).astype('double')
-            mu_y, var_y, x2_y = bernoulli_model.fit_gene_model(
-                vals_y, num_umi)
-
-        elif model == 'danb':
-            mu_y, var_y, x2_y = danb_model.fit_gene_model(
-                vals_y, num_umi)
-
-        elif model == 'normal':
-            mu_y, var_y, x2_y = normal_model.fit_gene_model(
-                vals_y, num_umi)
-
-        elif model == 'none':
-            mu_x, var_x, x2_x = none_model.fit_gene_model(
-                vals_x, num_umi)
-
-        else:
-            raise Exception("Invalid Model: {}".format(model))
+        vals_y, mu_y, var_y, x2_y = _fit_gene(vals_y, model, num_umi)
 
         if centered:
             vals_y = center_values(vals_y, mu_y, var_y)
@@ -889,12 +853,13 @@ def _conditional_eg2_gpu(X, W_sym):
     return (t1x_T ** 2).sum(axis=0)
 
 
-def _local_cov_pair_all_gpu(cp, X, W):
+def _local_cov_pair_all_gpu(X, W):
     """GPU batch of local_cov_pair for ALL gene pairs via dense matmul.
 
     Returns the full G x G matrix of lc values (= local_cov_pair * 2).
     Diagonal is zeroed (no self-pairs).
     """
+    import cupy as cp
     smoothed_T = W @ X.T                # (N, G)
     M = X @ smoothed_T                  # (G, G):  M[a,b] = x_a . (W @ x_b)
     lc_matrix = M + M.T                 # symmetrize: lc[a,b] = x_a.(Wx_b) + x_b.(Wx_a)
@@ -930,7 +895,7 @@ def _compute_hs_pairs_centered_cond_gpu(counts, neighbors, weights, num_umi, mod
 
     eg2s = _conditional_eg2_gpu(X, W_sym)
 
-    lc_matrix = _local_cov_pair_all_gpu(cp, X, W)
+    lc_matrix = _local_cov_pair_all_gpu(X, W)
 
     std_genes = eg2s ** 0.5
     Z_xy = lc_matrix / std_genes[:, None]

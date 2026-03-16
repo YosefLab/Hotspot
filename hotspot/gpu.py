@@ -44,31 +44,18 @@ def _require_gpu():
         ) from e
 
 
-def _build_sparse_weight_matrix(neighbors, weights, shape):
+def _build_sparse_weight_matrix(neighbors, weights, shape, square=False):
     """Build a CuPy sparse CSR matrix from neighbor/weight arrays.
 
     W[i, neighbors[i,k]] = weights[i,k]  for all i, k where weights[i,k] != 0.
+    If square=True, uses weights^2 instead (for moment computations).
     """
     N, K = neighbors.shape
     rows = np.repeat(np.arange(N, dtype=np.int32), K)
     cols = neighbors.ravel().astype(np.int32)
     vals = weights.ravel().astype(np.float64)
-
-    mask = vals != 0
-    rows, cols, vals = rows[mask], cols[mask], vals[mask]
-
-    return cp_sparse.csr_matrix(
-        (cp.asarray(vals), (cp.asarray(rows), cp.asarray(cols))),
-        shape=shape,
-    )
-
-
-def _build_sparse_weight_sq_matrix(neighbors, weights, shape):
-    """Build sparse matrix with squared weights: W_sq[i,j] = weights[i,k]^2."""
-    N, K = neighbors.shape
-    rows = np.repeat(np.arange(N, dtype=np.int32), K)
-    cols = neighbors.ravel().astype(np.int32)
-    vals = (weights.ravel().astype(np.float64)) ** 2
+    if square:
+        vals = vals ** 2
 
     mask = vals != 0
     rows, cols, vals = rows[mask], cols[mask], vals[mask]
