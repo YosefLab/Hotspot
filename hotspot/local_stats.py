@@ -343,11 +343,9 @@ def _compute_local_cov_max_gpu(D_gpu, vals_gpu):
 
 
 def _compute_hs_gpu(counts, neighbors, weights, num_umi, model, genes, centered):
-    """GPU-accelerated autocorrelation, structured analogously to the CPU path.
-
-    Instead of looping over genes one-by-one, all genes are processed in
-    parallel via sparse matrix multiplication on the GPU:
-      G[g] = vals[g] . (W @ vals[g])
+    """
+    GPU-accelerated version of _compute_hs_inner, batched over all genes.
+    All genes are processed in parallel via sparse matrix multiplication.
     """
     import cupy as cp
     from .gpu import _require_gpu, _build_sparse_weight_matrix, _build_sparse_weight_sq_matrix
@@ -364,7 +362,6 @@ def _compute_hs_gpu(counts, neighbors, weights, num_umi, model, genes, centered)
     D = compute_node_degree(neighbors_np, weights_np)
     Wtot2 = (weights_np ** 2).sum()
 
-    # --- Fit models and center on CPU (per gene, same as _compute_hs_inner) ---
     all_vals = np.zeros((N_genes, N_cells), dtype="double")
     all_mu = np.zeros((N_genes, N_cells), dtype="double")
     all_x2 = np.zeros((N_genes, N_cells), dtype="double")
@@ -382,15 +379,12 @@ def _compute_hs_gpu(counts, neighbors, weights, num_umi, model, genes, centered)
         all_mu[i] = mu
         all_x2[i] = x2
 
-    # --- Transfer to GPU ---
     vals_gpu = cp.asarray(all_vals)
     D_gpu = cp.asarray(D)
     W = _build_sparse_weight_matrix(neighbors_np, weights_np, shape=(N_cells, N_cells))
 
-    # --- G statistic (batched local_cov_weights) ---
     G_stats = _local_cov_weights_gpu(vals_gpu, W)
 
-    # --- Moments (batched compute_moments_weights) ---
     if centered:
         EG = cp.zeros(N_genes, dtype="double")
         EG2 = cp.full(N_genes, Wtot2, dtype="double")
@@ -402,14 +396,12 @@ def _compute_hs_gpu(counts, neighbors, weights, num_umi, model, genes, centered)
         )
         EG, EG2 = _compute_moments_weights_gpu(cp, mu_gpu, x2_gpu, W, W_sq)
 
-    # --- Z-score and C (same formulas as CPU) ---
     stdG = (EG2 - EG * EG) ** 0.5
     Z = (G_stats - EG) / stdG
 
     G_max = _compute_local_cov_max_gpu(D_gpu, vals_gpu)
     C = (G_stats - EG) / G_max
 
-    # --- Build results DataFrame (same as CPU path) ---
     results = pd.DataFrame(
         {
             "G": cp.asnumpy(G_stats), "EG": cp.asnumpy(EG),

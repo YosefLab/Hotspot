@@ -903,11 +903,9 @@ def _local_cov_pair_all_gpu(cp, X, W):
 
 
 def _compute_hs_pairs_centered_cond_gpu(counts, neighbors, weights, num_umi, model):
-    """GPU-accelerated pair-wise local correlations, structured analogously
-    to the CPU path in compute_hs_pairs_centered_cond.
-
-    Instead of iterating over O(G^2) pairs, all pair correlations are
-    computed in one dense matmul:  M = X @ (W @ X.T),  lc = M + M.T
+    """
+    GPU-accelerated version of compute_hs_pairs_centered_cond, batched
+    over all gene pairs via dense matmul: M = X @ (W @ X.T), lc = M + M.T
     """
     import cupy as cp
     from .gpu import _require_gpu, _build_sparse_weight_matrix
@@ -923,33 +921,26 @@ def _compute_hs_pairs_centered_cond_gpu(counts, neighbors, weights, num_umi, mod
 
     D = compute_node_degree(neighbors_np, weights_np)
 
-    # --- Center counts on CPU (same as CPU path) ---
     centered_counts = create_centered_counts(counts_np, model, num_umi_np)
 
-    # --- Transfer to GPU ---
     X = cp.asarray(centered_counts)
     D_gpu = cp.asarray(D)
     W = _build_sparse_weight_matrix(neighbors_np, weights_np, shape=(N_cells, N_cells))
     W_sym = W + W.T
 
-    # --- Conditional EG2 per gene (batched conditional_eg2) ---
     eg2s = _conditional_eg2_gpu(X, W_sym)
 
-    # --- All pair correlations (batched local_cov_pair) ---
     lc_matrix = _local_cov_pair_all_gpu(cp, X, W)
 
-    # --- Z-scores: min(|Z_xy|, |Z_yx|) with sign (same logic as CPU) ---
     std_genes = eg2s ** 0.5
     Z_xy = lc_matrix / std_genes[:, None]
     Z_yx = lc_matrix / std_genes[None, :]
     lc_zs = cp.where(cp.abs(Z_xy) < cp.abs(Z_yx), Z_xy, Z_yx)
 
-    # --- Normalize lc by max (batched compute_local_cov_pairs_max) ---
     gene_maxs = (D_gpu * X ** 2).sum(axis=1) / 2
     lc_maxs = (gene_maxs[:, None] + gene_maxs[None, :]) / 2
     lcs = lc_matrix / lc_maxs
 
-    # --- Build output DataFrames (same as CPU path) ---
     lcs_df = pd.DataFrame(cp.asnumpy(lcs), index=genes, columns=genes)
     lc_zs_df = pd.DataFrame(cp.asnumpy(lc_zs), index=genes, columns=genes)
 
