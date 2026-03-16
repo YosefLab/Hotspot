@@ -182,8 +182,14 @@ def initializer(neighbors, weights, num_umi, model, centered, Wtot2, D):
     g_D = D
 
 def compute_hs(
-    counts, neighbors, weights, num_umi, model, genes, centered=False, jobs=1
+    counts, neighbors, weights, num_umi, model, genes, centered=False, jobs=1,
+    use_gpu=False
 ):
+
+    if use_gpu:
+        return _compute_hs_gpu(
+            counts, neighbors, weights, num_umi, model, genes, centered
+        )
 
     neighbors = neighbors.values
     weights = weights.values
@@ -202,8 +208,8 @@ def compute_hs(
 
     if jobs > 1:
         with multiprocessing.Pool(
-            processes=jobs, 
-            initializer=initializer, 
+            processes=jobs,
+            initializer=initializer,
             initargs=[neighbors, weights, num_umi, model, centered, Wtot2, D]
         ) as pool:
             results = list(
@@ -211,7 +217,7 @@ def compute_hs(
                     pool.imap(
                         _map_fun_parallel,
                         data_iter()
-                    ), 
+                    ),
                     total=counts.shape[0]
                 )
             )
@@ -237,15 +243,11 @@ def compute_hs(
     return results
 
 
-def _compute_hs_inner(vals, neighbors, weights, num_umi, model, centered, Wtot2, D):
-    """
-    Note, since this is an inner function, for parallelization to work well
-    none of the contents of the function can use MKL or OPENBLAS threads.
-    Or else we open too many.  Because of this, some simple numpy operations
-    are re-implemented using numba instead as it's difficult to control
-    the number of threads in numpy after it's imported
-    """
+def _fit_gene(vals, model, num_umi):
+    """Fit a gene model and return (vals, mu, var, x2).
 
+    For the bernoulli model, vals is binarized before fitting.
+    """
     if model == "bernoulli":
         vals = (vals > 0).astype("double")
         mu, var, x2 = bernoulli_model.fit_gene_model(vals, num_umi)
@@ -256,7 +258,20 @@ def _compute_hs_inner(vals, neighbors, weights, num_umi, model, centered, Wtot2,
     elif model == "none":
         mu, var, x2 = none_model.fit_gene_model(vals, num_umi)
     else:
-        raise Exception("Invalid Model: {}".format(model))
+        raise ValueError("Invalid Model: {}".format(model))
+    return vals, mu, var, x2
+
+
+def _compute_hs_inner(vals, neighbors, weights, num_umi, model, centered, Wtot2, D):
+    """
+    Note, since this is an inner function, for parallelization to work well
+    none of the contents of the function can use MKL or OPENBLAS threads.
+    Or else we open too many.  Because of this, some simple numpy operations
+    are re-implemented using numba instead as it's difficult to control
+    the number of threads in numpy after it's imported
+    """
+
+    vals, mu, var, x2 = _fit_gene(vals, model, num_umi)
 
     if centered:
         vals = center_values(vals, mu, var)
@@ -289,3 +304,124 @@ def _map_fun_parallel(vals):
     return _compute_hs_inner(
         vals, g_neighbors, g_weights, g_num_umi, g_model, g_centered, g_Wtot2, g_D
     )
+
+
+def _local_cov_weights_gpu(vals_gpu, W):
+    """GPU batch of local_cov_weights: G[g] = vals[g] . (W @ vals[g]) for all genes."""
+    smoothed_T = W @ vals_gpu.T
+    return (vals_gpu * smoothed_T.T).sum(axis=1)
+
+
+def _compute_moments_weights_gpu(cp, mu_gpu, x2_gpu, W, W_sq):
+    """GPU batch of compute_moments_weights for all genes at once."""
+    # EG[g] = mu[g] . (W @ mu[g])
+    EG = (mu_gpu * (W @ mu_gpu.T).T).sum(axis=1)
+
+    # t1[g] = (W + W.T) @ mu[g],  t2[g] = (W_sq + W_sq.T) @ mu[g]^2
+    W_sym = W + W.T
+    W_sq_sym = W_sq + W_sq.T
+    mu2_gpu = mu_gpu ** 2
+
+    t1_T = W_sym @ mu_gpu.T
+    t2_T = W_sq_sym @ mu2_gpu.T
+
+    # Contribution 1: sum_i (x2[i] - mu[i]^2) * (t1[i]^2 - t2[i])
+    diff_var = (x2_gpu - mu2_gpu).T
+    eg2_c1 = (diff_var * (t1_T ** 2 - t2_T)).sum(axis=0)
+
+    # Contribution 2: sum_{edges} w^2 * (x2[i]*x2[j] - mu[i]^2*mu[j]^2)
+    eg2_c2 = (x2_gpu.T * (W_sq @ x2_gpu.T)).sum(axis=0)
+    eg2_c2 -= (mu2_gpu.T * (W_sq @ mu2_gpu.T)).sum(axis=0)
+
+    EG2 = eg2_c1 + eg2_c2 + EG ** 2
+    return EG, EG2
+
+
+def _compute_local_cov_max_gpu(D_gpu, vals_gpu):
+    """GPU batch of compute_local_cov_max: G_max[g] = sum_i D[i]*vals[g,i]^2 / 2."""
+    return (D_gpu * vals_gpu ** 2).sum(axis=1) / 2
+
+
+def _compute_hs_gpu(counts, neighbors, weights, num_umi, model, genes, centered):
+    """GPU-accelerated autocorrelation, structured analogously to the CPU path.
+
+    Instead of looping over genes one-by-one, all genes are processed in
+    parallel via sparse matrix multiplication on the GPU:
+      G[g] = vals[g] . (W @ vals[g])
+    """
+    import cupy as cp
+    from .gpu import _require_gpu, _build_sparse_weight_matrix, _build_sparse_weight_sq_matrix
+
+    _require_gpu()
+
+    neighbors_np = neighbors.values
+    weights_np = weights.values
+    num_umi_np = num_umi.values
+
+    N_genes = counts.shape[0]
+    N_cells = counts.shape[1]
+
+    D = compute_node_degree(neighbors_np, weights_np)
+    Wtot2 = (weights_np ** 2).sum()
+
+    # --- Fit models and center on CPU (per gene, same as _compute_hs_inner) ---
+    all_vals = np.zeros((N_genes, N_cells), dtype="double")
+    all_mu = np.zeros((N_genes, N_cells), dtype="double")
+    all_x2 = np.zeros((N_genes, N_cells), dtype="double")
+
+    for i in range(N_genes):
+        raw = counts[i]
+        if issparse(raw):
+            raw = raw.toarray().ravel()
+        raw = np.asarray(raw).ravel().astype("double")
+
+        vals, mu, var, x2 = _fit_gene(raw, model, num_umi_np)
+        if centered:
+            vals = center_values(vals, mu, var)
+        all_vals[i] = vals
+        all_mu[i] = mu
+        all_x2[i] = x2
+
+    # --- Transfer to GPU ---
+    vals_gpu = cp.asarray(all_vals)
+    D_gpu = cp.asarray(D)
+    W = _build_sparse_weight_matrix(neighbors_np, weights_np, shape=(N_cells, N_cells))
+
+    # --- G statistic (batched local_cov_weights) ---
+    G_stats = _local_cov_weights_gpu(vals_gpu, W)
+
+    # --- Moments (batched compute_moments_weights) ---
+    if centered:
+        EG = cp.zeros(N_genes, dtype="double")
+        EG2 = cp.full(N_genes, Wtot2, dtype="double")
+    else:
+        mu_gpu = cp.asarray(all_mu)
+        x2_gpu = cp.asarray(all_x2)
+        W_sq = _build_sparse_weight_sq_matrix(
+            neighbors_np, weights_np, shape=(N_cells, N_cells)
+        )
+        EG, EG2 = _compute_moments_weights_gpu(cp, mu_gpu, x2_gpu, W, W_sq)
+
+    # --- Z-score and C (same formulas as CPU) ---
+    stdG = (EG2 - EG * EG) ** 0.5
+    Z = (G_stats - EG) / stdG
+
+    G_max = _compute_local_cov_max_gpu(D_gpu, vals_gpu)
+    C = (G_stats - EG) / G_max
+
+    # --- Build results DataFrame (same as CPU path) ---
+    results = pd.DataFrame(
+        {
+            "G": cp.asnumpy(G_stats), "EG": cp.asnumpy(EG),
+            "stdG": cp.asnumpy(stdG), "Z": cp.asnumpy(Z), "C": cp.asnumpy(C),
+        },
+        index=genes,
+    )
+
+    results["Pval"] = norm.sf(results["Z"].values)
+    results["FDR"] = multipletests(results["Pval"], method="fdr_bh")[1]
+    results = results.sort_values("Z", ascending=False)
+    results.index.name = "Gene"
+    results = results[["C", "Z", "Pval", "FDR"]]
+
+    return results
