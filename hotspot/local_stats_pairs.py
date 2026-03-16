@@ -744,7 +744,12 @@ def initializer3(counts, neighbors, weights, eg2s):
 
 
 def compute_hs_pairs_centered_cond(counts, neighbors, weights,
-                                   num_umi, model, jobs=1):
+                                   num_umi, model, jobs=1, use_gpu=False):
+
+    if use_gpu:
+        return _compute_hs_pairs_centered_cond_gpu(
+            counts, neighbors, weights, num_umi, model
+        )
 
     genes = counts.index
 
@@ -876,3 +881,67 @@ def compute_local_cov_pairs_max(node_degrees, counts):
     result = gene_maxs.reshape((-1, 1)) + gene_maxs.reshape((1, -1))
     result = result / 2
     return result
+
+
+def _compute_hs_pairs_centered_cond_gpu(counts, neighbors, weights, num_umi, model):
+    """GPU-accelerated pair-wise local correlations via dense matmul.
+
+    All G*(G-1)/2 pair correlations are computed in one operation:
+      M = X @ (W @ X.T)   then   lc = M + M.T
+    """
+    import cupy as cp
+    from .gpu import _require_gpu, _build_sparse_weight_matrix
+
+    _require_gpu()
+
+    genes = counts.index
+
+    counts_np = counts.values
+    neighbors_np = neighbors.values
+    weights_np = weights.values
+    num_umi_np = num_umi.values
+
+    N_genes = counts_np.shape[0]
+    N_cells = counts_np.shape[1]
+
+    D = compute_node_degree(neighbors_np, weights_np)
+
+    # Center counts on CPU using existing per-gene function
+    centered_counts = np.zeros_like(counts_np, dtype="double")
+    for i in range(N_genes):
+        centered_counts[i] = create_centered_counts_row(
+            counts_np[i].astype("double"), model, num_umi_np
+        )
+
+    # Transfer to GPU
+    X = cp.asarray(centered_counts)
+    D_gpu = cp.asarray(D)
+
+    W = _build_sparse_weight_matrix(neighbors_np, weights_np, shape=(N_cells, N_cells))
+    W_sym = W + W.T
+
+    # eg2[g] = ||(W + W.T) @ x[g]||^2
+    t1x_T = W_sym @ X.T
+    eg2s = (t1x_T ** 2).sum(axis=0)
+
+    # All pair correlations: M = X @ (W @ X.T), lc = M + M.T
+    smoothed_T = W @ X.T
+    M = X @ smoothed_T
+    lc_matrix = M + M.T
+    cp.fill_diagonal(lc_matrix, 0)
+
+    # Z-scores: take the more conservative of Z_xy and Z_yx
+    std_genes = eg2s ** 0.5
+    Z_xy = lc_matrix / std_genes[:, None]
+    Z_yx = lc_matrix / std_genes[None, :]
+    lc_zs = cp.where(cp.abs(Z_xy) < cp.abs(Z_yx), Z_xy, Z_yx)
+
+    # Normalize lc by max
+    gene_maxs = (D_gpu * X ** 2).sum(axis=1) / 2
+    lc_maxs = (gene_maxs[:, None] + gene_maxs[None, :]) / 2
+    lcs = lc_matrix / lc_maxs
+
+    lcs_df = pd.DataFrame(cp.asnumpy(lcs), index=genes, columns=genes)
+    lc_zs_df = pd.DataFrame(cp.asnumpy(lc_zs), index=genes, columns=genes)
+
+    return lcs_df, lc_zs_df

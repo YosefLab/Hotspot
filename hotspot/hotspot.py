@@ -16,6 +16,7 @@ from .local_stats_pairs import compute_hs_pairs, compute_hs_pairs_centered_cond
 
 from . import modules
 from .plots import local_correlation_plot
+from .gpu import is_gpu_available
 from tqdm import tqdm
 
 
@@ -29,6 +30,7 @@ class Hotspot:
         distances_obsp_key=None,
         tree=None,
         umi_counts_obs_key=None,
+        use_gpu=False,
     ):
         """Initialize a Hotspot object for analysis
 
@@ -60,6 +62,10 @@ class Hotspot:
         umi_counts_obs_key : str
             Total umi count per cell.  Used as a size factor.
             If omitted, the sum over genes in the counts matrix is used
+        use_gpu : bool, optional
+            Whether to use GPU acceleration via CuPy for embarrassingly
+            parallel operations. Requires CuPy and a CUDA-capable GPU.
+            Default is False.
         """
         counts = self._counts_from_anndata(adata, layer_key)
         distances = (
@@ -165,6 +171,14 @@ class Hotspot:
         self.local_correlation_z = None
         self.linkage = None
         self.module_scores = None
+
+        if use_gpu:
+            if not is_gpu_available():
+                raise RuntimeError(
+                    "use_gpu=True but GPU is not available. "
+                    "Ensure CuPy is installed and a CUDA GPU is present."
+                )
+        self.use_gpu = use_gpu
 
     @classmethod
     def legacy_init(
@@ -416,6 +430,7 @@ class Hotspot:
             genes=self.adata.var_names,
             centered=True,
             jobs=jobs,
+            use_gpu=self.use_gpu,
         )
 
         self.results = results
@@ -486,6 +501,7 @@ class Hotspot:
             self.umi_counts,
             self.model,
             jobs=jobs,
+            use_gpu=self.use_gpu,
         )
 
         self.local_correlation_c = lc
