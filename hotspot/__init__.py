@@ -1,6 +1,7 @@
 name = "hotspot"
 
 from .hotspot import Hotspot
+from .gpu import is_gpu_available
 
 # https://github.com/python-poetry/poetry/pull/2366#issuecomment-652418094
 # https://github.com/python-poetry/poetry/issues/144#issuecomment-623927302
