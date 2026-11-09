@@ -122,7 +122,6 @@ def compute_hs(
         neighbors, weights, shape=(N_cells, N_cells), square=True, use_gpu=use_gpu
     )
 
-    # GPU: all genes in one block, as before; CPU: small blocks spread over threads
     block = N_genes if use_gpu else max(1, _BLOCK_ELEMS // N_cells)
 
     def _block(i):
