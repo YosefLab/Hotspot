@@ -2,16 +2,19 @@ import numpy as np
 import pandas as pd
 from hotspot import sim_data
 from hotspot.knn import neighbors_and_weights, make_weights_non_redundant
+from hotspot.gpu import _build_sparse_weight_matrix
 from hotspot.local_stats import (
-    compute_moments_weights,
+    _compute_moments_weights,
+    _local_cov_weights,
     compute_moments_weights_slow
 )
+from .numba_reference import local_cov_weights
 import math
 
 
 def test_moments_fast():
     """
-    Output of compute_moments_weights should be the same as
+    Output of the batched _compute_moments_weights should be the same as
     compute_moments_weights_slow
     """
 
@@ -35,12 +38,16 @@ def test_moments_fast():
         EG, EG2 = compute_moments_weights_slow(
             muX, x2, neighbors, weights
         )
-        EG_fast, EG2_fast = compute_moments_weights(
-            muX, x2,  neighbors, weights
-        )
+        shape = (N_CELLS, N_CELLS)
+        W = _build_sparse_weight_matrix(neighbors, weights, shape)
+        W_sq = _build_sparse_weight_matrix(neighbors, weights, shape, square=True)
+        EG_fast, EG2_fast = _compute_moments_weights(muX[None], x2[None], W, W_sq)
 
-        assert math.isclose(EG, EG_fast, rel_tol=rel_tol)
-        assert math.isclose(EG2, EG2_fast, rel_tol=rel_tol)
+        assert math.isclose(EG, EG_fast[0], rel_tol=rel_tol)
+        assert math.isclose(EG2, EG2_fast[0], rel_tol=rel_tol)
+
+        G = local_cov_weights(muX, neighbors, weights)
+        assert math.isclose(G, _local_cov_weights(muX[None], W)[0], rel_tol=1e-12)
 
     neighbors, weights = neighbors_and_weights(
         latent, n_neighbors=30, neighborhood_factor=3, approx_neighbors=False)
