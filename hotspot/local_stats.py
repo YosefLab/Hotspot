@@ -6,6 +6,7 @@ from scipy.stats import norm
 from scipy.sparse import issparse
 from statsmodels.stats.multitest import multipletests
 from threadpoolctl import threadpool_limits
+from concurrent.futures import ThreadPoolExecutor
 
 from . import danb_model
 from . import bernoulli_model
@@ -92,7 +93,7 @@ def compute_local_cov_max(node_degrees, vals):
     return tot / 2
 
 # Genes per block are chosen so each (genes x cells) dense array holds ~this many doubles
-_BLOCK_ELEMS = 2**24
+_BLOCK_ELEMS = 2**22
 
 
 def compute_hs(
@@ -100,8 +101,9 @@ def compute_hs(
     use_gpu=False
 ):
     """
-    Batched over genes via sparse matrix multiplication on CPU (numpy/scipy,
-    BLAS limited to `jobs` threads) or GPU (cupy).
+    Batched over genes via sparse matrix multiplication on CPU (numpy/scipy)
+    or GPU (cupy, one block). CPU gene blocks run on `jobs` threads, BLAS
+    limited to 1 thread each.
     """
     xp = get_backend(use_gpu)
 
@@ -120,14 +122,17 @@ def compute_hs(
         neighbors, weights, shape=(N_cells, N_cells), square=True, use_gpu=use_gpu
     )
 
-    block = max(1, _BLOCK_ELEMS // N_cells)
-    with threadpool_limits(jobs):
-        results = [
-            _compute_hs_block(
-                counts[i:i + block], W, W_sq, D, Wtot2, num_umi, model, centered, xp
-            )
-            for i in tqdm(range(0, N_genes, block))
-        ]
+    # GPU: all genes in one block, as before; CPU: small blocks spread over threads
+    block = N_genes if use_gpu else max(1, _BLOCK_ELEMS // N_cells)
+
+    def _block(i):
+        return _compute_hs_block(
+            counts[i:i + block], W, W_sq, D, Wtot2, num_umi, model, centered, xp
+        )
+
+    starts = range(0, N_genes, block)
+    with threadpool_limits(1), ThreadPoolExecutor(jobs) as pool:
+        results = list(tqdm(pool.map(_block, starts), total=len(starts)))
 
     results = pd.DataFrame(
         np.vstack(results), index=genes, columns=["G", "EG", "stdG", "Z", "C"]
