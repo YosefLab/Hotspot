@@ -127,3 +127,5 @@ ENV/
 
 /data
 .vscode/settings.json
+# scanpy dataset cache for tests/test_e2e.py
+tests/data/pbmc3k_raw.h5ad
