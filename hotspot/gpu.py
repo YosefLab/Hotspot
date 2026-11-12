@@ -1,10 +1,10 @@
 """
-GPU utilities for Hotspot. Provides CuPy availability checks and
-sparse matrix construction helpers used by the GPU paths in
-local_stats.py and local_stats_pairs.py.
+Backend utilities for Hotspot. The batched paths in local_stats.py and
+local_stats_pairs.py run on numpy/scipy (CPU) or cupy (GPU).
 """
 
 import numpy as np
+import scipy.sparse
 
 try:
     import cupy as cp
@@ -44,8 +44,20 @@ def _require_gpu():
         ) from e
 
 
-def _build_sparse_weight_matrix(neighbors, weights, shape, square=False):
-    """Build a CuPy sparse CSR matrix from neighbor/weight arrays.
+def get_backend(use_gpu):
+    """Return the array module (numpy or cupy) for the requested device."""
+    if use_gpu:
+        _require_gpu()
+        return cp
+    return np
+
+
+def asnumpy(x):
+    return cp.asnumpy(x) if HAS_CUPY else x
+
+
+def _build_sparse_weight_matrix(neighbors, weights, shape, square=False, use_gpu=False):
+    """Build a sparse CSR matrix (scipy, or CuPy if use_gpu) from neighbor/weight arrays.
 
     W[i, neighbors[i,k]] = weights[i,k]  for all i, k where weights[i,k] != 0.
     If square=True, uses weights^2 instead (for moment computations).
@@ -60,7 +72,5 @@ def _build_sparse_weight_matrix(neighbors, weights, shape, square=False):
     mask = vals != 0
     rows, cols, vals = rows[mask], cols[mask], vals[mask]
 
-    return cp_sparse.csr_matrix(
-        (cp.asarray(vals), (cp.asarray(rows), cp.asarray(cols))),
-        shape=shape,
-    )
+    W = scipy.sparse.csr_matrix((vals, (rows, cols)), shape=shape)
+    return cp_sparse.csr_matrix(W) if use_gpu else W

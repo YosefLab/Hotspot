@@ -2,11 +2,11 @@ import numpy as np
 import pandas as pd
 import math
 from hotspot import sim_data
-from hotspot import local_stats
 from hotspot.knn import neighbors_and_weights, make_weights_non_redundant
 from hotspot import bernoulli_model
 from hotspot.utils import center_values
 from hotspot import local_stats_pairs
+from .numba_reference import local_cov_weights
 
 
 def test_local_autocorrelation_centered():
@@ -49,7 +49,7 @@ def test_local_autocorrelation_centered():
 
             counts_i = center_values(counts_i, mu, var)
 
-            g = local_stats.local_cov_weights(
+            g = local_cov_weights(
                 counts_i, neighbors, weights)
             Gs.append(g)
 

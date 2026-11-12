@@ -5,7 +5,8 @@ import pandas as pd
 from scipy.stats import norm
 from scipy.sparse import issparse
 from statsmodels.stats.multitest import multipletests
-import multiprocessing
+from threadpoolctl import threadpool_limits
+from concurrent.futures import ThreadPoolExecutor
 
 from . import danb_model
 from . import bernoulli_model
@@ -14,26 +15,7 @@ from . import none_model
 
 from .knn import compute_node_degree
 from .utils import center_values
-
-
-@jit(nopython=True)
-def local_cov_weights(x, neighbors, weights):
-    out = 0
-
-    for i in range(len(x)):
-        for k in range(neighbors.shape[1]):
-
-            j = neighbors[i, k]
-            w_ij = weights[i, k]
-
-            xi = x[i]
-            xj = x[j]
-            if xi == 0 or xj == 0 or w_ij == 0:
-                out += 0
-            else:
-                out += xi * xj * w_ij
-
-    return out
+from .gpu import get_backend, asnumpy, _build_sparse_weight_matrix
 
 
 @jit(nopython=True)
@@ -102,61 +84,6 @@ def compute_moments_weights_slow(mu, x2, neighbors, weights):
 
 
 @jit(nopython=True)
-def compute_moments_weights(mu, x2, neighbors, weights):
-
-    N = neighbors.shape[0]
-    K = neighbors.shape[1]
-
-    # Calculate E[G]
-    EG = 0
-    for i in range(N):
-        for k in range(K):
-            j = neighbors[i, k]
-            wij = weights[i, k]
-
-            EG += wij * mu[i] * mu[j]
-
-    # Calculate E[G^2]
-    EG2 = 0
-
-    #   Get the x^2*y*z terms
-    t1 = np.zeros(N)
-    t2 = np.zeros(N)
-
-    for i in range(N):
-        for k in range(K):
-            j = neighbors[i, k]
-
-            wij = weights[i, k]
-            if wij == 0:
-                continue
-
-            t1[i] += wij * mu[j]
-            t2[i] += wij**2 * mu[j] ** 2
-
-            t1[j] += wij * mu[i]
-            t2[j] += wij**2 * mu[i] ** 2
-
-    t1 = t1**2
-
-    for i in range(N):
-        EG2 += (x2[i] - mu[i] ** 2) * (t1[i] - t2[i])
-
-    #  Get the x^2*y^2 terms
-    for i in range(N):
-        for k in range(K):
-            j = neighbors[i, k]
-
-            wij = weights[i, k]
-
-            EG2 += wij**2 * (x2[i] * x2[j] - (mu[i] ** 2) * (mu[j] ** 2))
-
-    EG2 += EG**2
-
-    return EG, EG2
-
-
-@jit(nopython=True)
 def compute_local_cov_max(node_degrees, vals):
     tot = 0.0
 
@@ -165,73 +92,50 @@ def compute_local_cov_max(node_degrees, vals):
 
     return tot / 2
 
-def initializer(neighbors, weights, num_umi, model, centered, Wtot2, D):
-    global g_neighbors
-    global g_weights
-    global g_num_umi
-    global g_model
-    global g_centered
-    global g_Wtot2
-    global g_D
-    g_neighbors = neighbors
-    g_weights = weights
-    g_num_umi = num_umi
-    g_model = model
-    g_centered = centered
-    g_Wtot2 = Wtot2
-    g_D = D
+# Genes per block are chosen so each (genes x cells) dense array holds ~this many doubles
+_BLOCK_ELEMS = 2**22
+
 
 def compute_hs(
     counts, neighbors, weights, num_umi, model, genes, centered=False, jobs=1,
     use_gpu=False
 ):
-
-    if use_gpu:
-        results = _compute_hs_gpu(
-            counts, neighbors, weights, num_umi, model, genes, centered
-        )
-        return _postprocess_results(results)
+    """
+    Batched over genes via sparse matrix multiplication on CPU (numpy/scipy)
+    or GPU (cupy, one block). CPU gene blocks run on `jobs` threads, BLAS
+    limited to 1 thread each.
+    """
+    xp = get_backend(use_gpu)
 
     neighbors = neighbors.values
     weights = weights.values
     num_umi = num_umi.values
 
-    D = compute_node_degree(neighbors, weights)
+    N_genes, N_cells = counts.shape
+
+    D = xp.asarray(compute_node_degree(neighbors, weights))
     Wtot2 = (weights**2).sum()
+    W = _build_sparse_weight_matrix(
+        neighbors, weights, shape=(N_cells, N_cells), use_gpu=use_gpu
+    )
+    W_sq = None if centered else _build_sparse_weight_matrix(
+        neighbors, weights, shape=(N_cells, N_cells), square=True, use_gpu=use_gpu
+    )
 
-    def data_iter():
-        for i in range(counts.shape[0]):
-            vals = counts[i]
-            if issparse(vals):
-                vals = vals.toarray().ravel()
-            vals = vals.astype("double")
-            yield vals
+    block = N_genes if use_gpu else max(1, _BLOCK_ELEMS // N_cells)
 
-    if jobs > 1:
-        with multiprocessing.Pool(
-            processes=jobs,
-            initializer=initializer,
-            initargs=[neighbors, weights, num_umi, model, centered, Wtot2, D]
-        ) as pool:
-            results = list(
-                tqdm(
-                    pool.imap(
-                        _map_fun_parallel,
-                        data_iter()
-                    ),
-                    total=counts.shape[0]
-                )
-            )
-    else:
+    def _block(i):
+        return _compute_hs_block(
+            counts[i:i + block], W, W_sq, D, Wtot2, num_umi, model, centered, xp
+        )
 
-        def _map_fun(vals):
-            return _compute_hs_inner(
-                vals, neighbors, weights, num_umi, model, centered, Wtot2, D
-            )
+    starts = range(0, N_genes, block)
+    with threadpool_limits(1), ThreadPoolExecutor(jobs) as pool:
+        results = list(tqdm(pool.map(_block, starts), total=len(starts)))
 
-        results = list(tqdm(map(_map_fun, data_iter()), total=counts.shape[0]))
-
-    results = pd.DataFrame(results, index=genes, columns=["G", "EG", "stdG", "Z", "C"])
+    results = pd.DataFrame(
+        np.vstack(results), index=genes, columns=["G", "EG", "stdG", "Z", "C"]
+    )
 
     return _postprocess_results(results)
 
@@ -264,120 +168,56 @@ def _fit_gene(vals, model, num_umi):
     return vals, mu, var, x2
 
 
-def _compute_hs_inner(vals, neighbors, weights, num_umi, model, centered, Wtot2, D):
-    """
-    Note, since this is an inner function, for parallelization to work well
-    none of the contents of the function can use MKL or OPENBLAS threads.
-    Or else we open too many.  Because of this, some simple numpy operations
-    are re-implemented using numba instead as it's difficult to control
-    the number of threads in numpy after it's imported
-    """
-
-    vals, mu, var, x2 = _fit_gene(vals, model, num_umi)
-
-    if centered:
-        vals = center_values(vals, mu, var)
-
-    G = local_cov_weights(vals, neighbors, weights)
-
-    if centered:
-        EG, EG2 = 0, Wtot2
-    else:
-        EG, EG2 = compute_moments_weights(mu, x2, neighbors, weights)
-
-    stdG = (EG2 - EG * EG) ** 0.5
-
-    Z = (G - EG) / stdG
-
-    G_max = compute_local_cov_max(D, vals)
-    C = (G - EG) / G_max
-
-    return [G, EG, stdG, Z, C]
+def _local_cov_weights(vals, W):
+    """Batch of local_cov_weights: G[g] = vals[g] . (W @ vals[g]) for all genes."""
+    smoothed_T = W @ vals.T
+    return (vals * smoothed_T.T).sum(axis=1)
 
 
-def _map_fun_parallel(vals):
-    global g_neighbors
-    global g_weights
-    global g_num_umi
-    global g_model
-    global g_centered
-    global g_Wtot2
-    global g_D
-    return _compute_hs_inner(
-        vals, g_neighbors, g_weights, g_num_umi, g_model, g_centered, g_Wtot2, g_D
-    )
-
-
-def _local_cov_weights_gpu(vals_gpu, W):
-    """GPU batch of local_cov_weights: G[g] = vals[g] . (W @ vals[g]) for all genes."""
-    smoothed_T = W @ vals_gpu.T
-    return (vals_gpu * smoothed_T.T).sum(axis=1)
-
-
-def _compute_moments_weights_gpu(mu_gpu, x2_gpu, W, W_sq):
-    """GPU batch of compute_moments_weights for all genes at once."""
+def _compute_moments_weights(mu, x2, W, W_sq):
+    """Batch of compute_moments_weights for all genes at once."""
     # EG[g] = mu[g] . (W @ mu[g])
-    EG = (mu_gpu * (W @ mu_gpu.T).T).sum(axis=1)
+    EG = (mu * (W @ mu.T).T).sum(axis=1)
 
     # t1[g] = (W + W.T) @ mu[g],  t2[g] = (W_sq + W_sq.T) @ mu[g]^2
     W_sym = W + W.T
     W_sq_sym = W_sq + W_sq.T
-    mu2_gpu = mu_gpu ** 2
+    mu2 = mu ** 2
 
-    t1_T = W_sym @ mu_gpu.T
-    t2_T = W_sq_sym @ mu2_gpu.T
+    t1_T = W_sym @ mu.T
+    t2_T = W_sq_sym @ mu2.T
 
     # Contribution 1: sum_i (x2[i] - mu[i]^2) * (t1[i]^2 - t2[i])
-    diff_var = (x2_gpu - mu2_gpu).T
+    diff_var = (x2 - mu2).T
     eg2_c1 = (diff_var * (t1_T ** 2 - t2_T)).sum(axis=0)
 
     # Contribution 2: sum_{edges} w^2 * (x2[i]*x2[j] - mu[i]^2*mu[j]^2)
-    eg2_c2 = (x2_gpu.T * (W_sq @ x2_gpu.T)).sum(axis=0)
-    eg2_c2 -= (mu2_gpu.T * (W_sq @ mu2_gpu.T)).sum(axis=0)
+    eg2_c2 = (x2.T * (W_sq @ x2.T)).sum(axis=0)
+    eg2_c2 -= (mu2.T * (W_sq @ mu2.T)).sum(axis=0)
 
     EG2 = eg2_c1 + eg2_c2 + EG ** 2
     return EG, EG2
 
 
-def _compute_local_cov_max_gpu(D_gpu, vals_gpu):
-    """GPU batch of compute_local_cov_max: G_max[g] = sum_i D[i]*vals[g,i]^2 / 2."""
-    return (D_gpu * vals_gpu ** 2).sum(axis=1) / 2
+def _compute_local_cov_max(D, vals):
+    """Batch of compute_local_cov_max: G_max[g] = sum_i D[i]*vals[g,i]^2 / 2."""
+    return (D * vals ** 2).sum(axis=1) / 2
 
 
-def _compute_hs_gpu(counts, neighbors, weights, num_umi, model, genes, centered):
-    """
-    GPU-accelerated version of _compute_hs_inner, batched over all genes.
-    All genes are processed in parallel via sparse matrix multiplication.
-    """
-    import cupy as cp
-    from .gpu import _require_gpu, _build_sparse_weight_matrix
-
-    _require_gpu()
-
-    neighbors_np = neighbors.values
-    weights_np = weights.values
-    num_umi_np = num_umi.values
-
-    N_genes = counts.shape[0]
-    N_cells = counts.shape[1]
-
-    D = compute_node_degree(neighbors_np, weights_np)
-    Wtot2 = (weights_np ** 2).sum()
-
+def _compute_hs_block(counts, W, W_sq, D, Wtot2, num_umi, model, centered, xp):
+    """Statistics for one block of genes, returned as a (genes x 5) numpy array."""
     if issparse(counts):
-        counts_dense = counts.toarray()
-    else:
-        counts_dense = np.asarray(counts)
+        counts = counts.toarray()
+    counts = np.asarray(counts, dtype="double")
 
+    N_genes, N_cells = counts.shape
     all_vals = np.zeros((N_genes, N_cells), dtype="double")
     if not centered:
         all_mu = np.zeros((N_genes, N_cells), dtype="double")
         all_x2 = np.zeros((N_genes, N_cells), dtype="double")
 
     for i in range(N_genes):
-        raw = counts_dense[i].astype("double")
-
-        vals, mu, var, x2 = _fit_gene(raw, model, num_umi_np)
+        vals, mu, var, x2 = _fit_gene(counts[i], model, num_umi)
         if centered:
             vals = center_values(vals, mu, var)
         else:
@@ -385,33 +225,20 @@ def _compute_hs_gpu(counts, neighbors, weights, num_umi, model, genes, centered)
             all_x2[i] = x2
         all_vals[i] = vals
 
-    vals_gpu = cp.asarray(all_vals)
-    D_gpu = cp.asarray(D)
-    W = _build_sparse_weight_matrix(neighbors_np, weights_np, shape=(N_cells, N_cells))
+    vals = xp.asarray(all_vals)
 
-    G_stats = _local_cov_weights_gpu(vals_gpu, W)
+    G_stats = _local_cov_weights(vals, W)
 
     if centered:
-        EG = cp.zeros(N_genes, dtype="double")
-        EG2 = cp.full(N_genes, Wtot2, dtype="double")
+        EG = xp.zeros(N_genes, dtype="double")
+        EG2 = xp.full(N_genes, Wtot2, dtype="double")
     else:
-        mu_gpu = cp.asarray(all_mu)
-        x2_gpu = cp.asarray(all_x2)
-        W_sq = _build_sparse_weight_matrix(
-            neighbors_np, weights_np, shape=(N_cells, N_cells), square=True
-        )
-        EG, EG2 = _compute_moments_weights_gpu(mu_gpu, x2_gpu, W, W_sq)
+        EG, EG2 = _compute_moments_weights(xp.asarray(all_mu), xp.asarray(all_x2), W, W_sq)
 
     stdG = (EG2 - EG * EG) ** 0.5
     Z = (G_stats - EG) / stdG
 
-    G_max = _compute_local_cov_max_gpu(D_gpu, vals_gpu)
+    G_max = _compute_local_cov_max(D, vals)
     C = (G_stats - EG) / G_max
 
-    return pd.DataFrame(
-        {
-            "G": cp.asnumpy(G_stats), "EG": cp.asnumpy(EG),
-            "stdG": cp.asnumpy(stdG), "Z": cp.asnumpy(Z), "C": cp.asnumpy(C),
-        },
-        index=genes,
-    )
+    return asnumpy(xp.stack([G_stats, EG, stdG, Z, C], axis=1))

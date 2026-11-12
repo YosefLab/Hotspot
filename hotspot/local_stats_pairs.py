@@ -4,6 +4,7 @@ from tqdm import tqdm
 import pandas as pd
 import multiprocessing
 import itertools
+from threadpoolctl import threadpool_limits
 
 from . import danb_model
 from . import bernoulli_model
@@ -12,32 +13,7 @@ from . import none_model
 from .local_stats import compute_local_cov_max, _fit_gene
 from .knn import compute_node_degree
 from .utils import center_values
-
-
-@jit(nopython=True)
-def conditional_eg2(x, neighbors, weights):
-    """
-    Computes EG2 for the conditional correlation
-    """
-    N = neighbors.shape[0]
-    K = neighbors.shape[1]
-
-    t1x = np.zeros(N)
-
-    for i in range(N):
-        for k in range(K):
-            j = neighbors[i, k]
-
-            wij = weights[i, k]
-            if wij == 0:
-                continue
-
-            t1x[i] += wij*x[j]
-            t1x[j] += wij*x[i]
-
-    out_eg2 = (t1x**2).sum()
-
-    return out_eg2
+from .gpu import get_backend, asnumpy, _build_sparse_weight_matrix
 
 
 def conditional_eg2_slow(x, neighbors, weights):
@@ -509,43 +485,6 @@ def _compute_hs_pairs_inner_centered(
     return (lc, Z)
 
 
-@jit(nopython=True)
-def _compute_hs_pairs_inner_centered_cond_sym(
-    rowpair, counts, neighbors, weights, eg2s
-):
-    """
-    This version assumes that the counts have already been modeled
-    and centered
-    """
-    row_i, row_j = rowpair
-
-    vals_x = counts[row_i]
-    vals_y = counts[row_j]
-
-    lc = local_cov_pair(vals_x, vals_y, neighbors, weights)*2
-
-    # Compute xy
-    EG, EG2 = 0, eg2s[row_i]
-
-    stdG = (EG2 - EG ** 2) ** 0.5
-
-    Zxy = (lc - EG) / stdG
-
-    # Compute yx
-    EG, EG2 = 0, eg2s[row_j]
-
-    stdG = (EG2 - EG ** 2) ** 0.5
-
-    Zyx = (lc - EG) / stdG
-
-    if abs(Zxy) < abs(Zyx):
-        Z = Zxy
-    else:
-        Z = Zyx
-
-    return (lc, Z)
-
-
 def initializer1(counts, neighbors, weights, num_umi, model, centered, Wtot2, D):
     global g_counts
     global g_neighbors
@@ -696,85 +635,49 @@ def compute_hs_pairs_centered(counts, neighbors, weights,
     return lcs, lc_zs
 
 
-def initializer3(counts, neighbors, weights, eg2s):
-    global g_counts
-    global g_neighbors
-    global g_weights
-    global g_eg2s
-    g_counts = counts
-    g_neighbors = neighbors
-    g_weights = weights
-    g_eg2s = eg2s
-
-
 def compute_hs_pairs_centered_cond(counts, neighbors, weights,
                                    num_umi, model, jobs=1, use_gpu=False):
-
-    if use_gpu:
-        return _compute_hs_pairs_centered_cond_gpu(
-            counts, neighbors, weights, num_umi, model
-        )
+    """
+    Batched over all gene pairs via dense matmul: M = X @ (W @ X.T), lc = M + M.T
+    on CPU (numpy/scipy, BLAS limited to `jobs` threads) or GPU (cupy).
+    """
+    xp = get_backend(use_gpu)
 
     genes = counts.index
+    counts_np = counts.values
+    neighbors_np = neighbors.values
+    weights_np = weights.values
+    num_umi_np = num_umi.values
+    N_cells = counts_np.shape[1]
 
-    counts = counts.values
-    neighbors = neighbors.values
-    weights = weights.values
-    num_umi = num_umi.values
+    D = compute_node_degree(neighbors_np, weights_np)
 
-    D = compute_node_degree(neighbors, weights)
+    centered_counts = create_centered_counts(counts_np, model, num_umi_np)
 
-    counts = create_centered_counts(counts, model, num_umi)
-
-    eg2s = np.array(
-        [
-            conditional_eg2(counts[i], neighbors, weights)
-            for i in range(counts.shape[0])
-        ]
+    X = xp.asarray(centered_counts)
+    D = xp.asarray(D)
+    W = _build_sparse_weight_matrix(
+        neighbors_np, weights_np, shape=(N_cells, N_cells), use_gpu=use_gpu
     )
+    W_sym = W + W.T
 
-    pairs = list(itertools.combinations(range(counts.shape[0]), 2))
+    with threadpool_limits(jobs):
+        eg2s = _conditional_eg2(X, W_sym)
+        lc_matrix = _local_cov_pair_all(X, W, xp)
 
-    if jobs > 1:
-        with multiprocessing.Pool(
-            processes=jobs, 
-            initializer=initializer3,
-            initargs=[counts, neighbors, weights, eg2s]
-        ) as pool:
-            results = list(
-                tqdm(
-                    pool.imap(
-                        _map_fun_parallel_pairs_centered_cond,
-                        pairs
-                    ),
-                    total=len(pairs)
-                )
-            )
-    else:
-        def _map_fun(rowpair):
-            return _compute_hs_pairs_inner_centered_cond_sym(
-                rowpair, counts, neighbors, weights, eg2s)
-        results = list(
-            tqdm(
-                map(_map_fun, pairs),
-                total=len(pairs)
-            )
-        )
+    std_genes = eg2s ** 0.5
+    Z_xy = lc_matrix / std_genes[:, None]
+    Z_yx = lc_matrix / std_genes[None, :]
+    lc_zs = xp.where(xp.abs(Z_xy) < xp.abs(Z_yx), Z_xy, Z_yx)
 
-    N = counts.shape[0]
-    pairs = np.array(pairs)
-    vals_lc = np.array([x[0] for x in results])
-    vals_z = np.array([x[1] for x in results])
-    lcs = expand_pairs(pairs, vals_lc, N)
-    lc_zs = expand_pairs(pairs, vals_z, N)
+    gene_maxs = (D * X ** 2).sum(axis=1) / 2
+    lc_maxs = (gene_maxs[:, None] + gene_maxs[None, :]) / 2
+    lcs = lc_matrix / lc_maxs
 
-    lc_maxs = compute_local_cov_pairs_max(D, counts)
-    lcs = lcs / lc_maxs
+    lcs_df = pd.DataFrame(asnumpy(lcs), index=genes, columns=genes)
+    lc_zs_df = pd.DataFrame(asnumpy(lc_zs), index=genes, columns=genes)
 
-    lcs = pd.DataFrame(lcs, index=genes, columns=genes)
-    lc_zs = pd.DataFrame(lc_zs, index=genes, columns=genes)
-
-    return lcs, lc_zs
+    return lcs_df, lc_zs_df
 
 
 def _map_fun_parallel_pairs(row_i):
@@ -801,16 +704,6 @@ def _map_fun_parallel_pairs_centered(rowpair):
     global g_counts
     return _compute_hs_pairs_inner_centered(
         rowpair, g_counts, g_neighbors, g_weights, g_Wtot2, g_D)
-
-
-def _map_fun_parallel_pairs_centered_cond(rowpair):
-    global g_neighbors
-    global g_weights
-    global g_counts
-    global g_eg2s
-    return _compute_hs_pairs_inner_centered_cond_sym(
-        rowpair, g_counts, g_neighbors, g_weights, g_eg2s
-    )
 
 
 @njit
@@ -847,66 +740,20 @@ def compute_local_cov_pairs_max(node_degrees, counts):
     return result
 
 
-def _conditional_eg2_gpu(X, W_sym):
-    """GPU batch of conditional_eg2: eg2[g] = ||(W + W.T) @ x[g]||^2."""
+def _conditional_eg2(X, W_sym):
+    """Batch of conditional_eg2: eg2[g] = ||(W + W.T) @ x[g]||^2."""
     t1x_T = W_sym @ X.T
     return (t1x_T ** 2).sum(axis=0)
 
 
-def _local_cov_pair_all_gpu(X, W):
-    """GPU batch of local_cov_pair for ALL gene pairs via dense matmul.
+def _local_cov_pair_all(X, W, xp):
+    """Batch of local_cov_pair for ALL gene pairs via dense matmul.
 
     Returns the full G x G matrix of lc values (= local_cov_pair * 2).
     Diagonal is zeroed (no self-pairs).
     """
-    import cupy as cp
     smoothed_T = W @ X.T                # (N, G)
     M = X @ smoothed_T                  # (G, G):  M[a,b] = x_a . (W @ x_b)
     lc_matrix = M + M.T                 # symmetrize: lc[a,b] = x_a.(Wx_b) + x_b.(Wx_a)
-    cp.fill_diagonal(lc_matrix, 0)
+    xp.fill_diagonal(lc_matrix, 0)
     return lc_matrix
-
-
-def _compute_hs_pairs_centered_cond_gpu(counts, neighbors, weights, num_umi, model):
-    """
-    GPU-accelerated version of compute_hs_pairs_centered_cond, batched
-    over all gene pairs via dense matmul: M = X @ (W @ X.T), lc = M + M.T
-    """
-    import cupy as cp
-    from .gpu import _require_gpu, _build_sparse_weight_matrix
-
-    _require_gpu()
-
-    genes = counts.index
-    counts_np = counts.values
-    neighbors_np = neighbors.values
-    weights_np = weights.values
-    num_umi_np = num_umi.values
-    N_cells = counts_np.shape[1]
-
-    D = compute_node_degree(neighbors_np, weights_np)
-
-    centered_counts = create_centered_counts(counts_np, model, num_umi_np)
-
-    X = cp.asarray(centered_counts)
-    D_gpu = cp.asarray(D)
-    W = _build_sparse_weight_matrix(neighbors_np, weights_np, shape=(N_cells, N_cells))
-    W_sym = W + W.T
-
-    eg2s = _conditional_eg2_gpu(X, W_sym)
-
-    lc_matrix = _local_cov_pair_all_gpu(X, W)
-
-    std_genes = eg2s ** 0.5
-    Z_xy = lc_matrix / std_genes[:, None]
-    Z_yx = lc_matrix / std_genes[None, :]
-    lc_zs = cp.where(cp.abs(Z_xy) < cp.abs(Z_yx), Z_xy, Z_yx)
-
-    gene_maxs = (D_gpu * X ** 2).sum(axis=1) / 2
-    lc_maxs = (gene_maxs[:, None] + gene_maxs[None, :]) / 2
-    lcs = lc_matrix / lc_maxs
-
-    lcs_df = pd.DataFrame(cp.asnumpy(lcs), index=genes, columns=genes)
-    lc_zs_df = pd.DataFrame(cp.asnumpy(lc_zs), index=genes, columns=genes)
-
-    return lcs_df, lc_zs_df
