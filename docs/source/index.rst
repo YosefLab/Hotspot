@@ -11,6 +11,20 @@ in a single-cell dataset.
 
 `Github Repo <https://github.com/YosefLab/Hotspot>`__ - `bioRxiv Preprint <https://www.biorxiv.org/content/10.1101/2020.02.06.937805v1>`__
 
+.. note::
+   This Hotspot package is no longer actively maintained. An enhanced, actively
+   maintained implementation of Hotspot is now part of
+   `scviva-tools <https://docs.scviva-tools.org/>`__, the spatial companion
+   package of scvi-tools, as ``scviva.tools.harreman.hotspot``
+   (``pip install scviva-tools``). It computes local autocorrelation, pairwise
+   local correlation and module scores with vectorized matrix multiplications
+   (with optional GPU acceleration), making it substantially faster on large
+   datasets.
+
+   See the `Harreman pipeline tutorial <https://docs.scviva-tools.org/en/latest/tutorials/Visium_colon_Harreman_pipeline.html>`__
+   for an end-to-end example, including
+   `computing and visualizing module scores <https://docs.scviva-tools.org/en/latest/tutorials/Visium_colon_Harreman_pipeline.html#step-5-compute-and-visualize-module-scores>`__.
+
 Importantly 'informative' is decided based on how well a gene's
 variation agrees with some cell metric - some similarity mapping between
 cells.
@@ -44,6 +58,7 @@ Tutorials
    Spatial_Tutorial.ipynb
    Lineage_Tutorial.ipynb
    CD4_Tutorial.ipynb
+   Hotspot in scviva-tools: Harreman pipeline on Visium mouse colon <https://docs.scviva-tools.org/en/latest/tutorials/Visium_colon_Harreman_pipeline.html>
 
 Full Module Reference
 ---------------------

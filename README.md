@@ -1,6 +1,11 @@
 ![Build Status](https://github.com/YosefLab/hotspot/workflows/hotspot/badge.svg)
 # Hotspot
 
+> [!NOTE]
+> This Hotspot package is no longer actively maintained. An enhanced, actively maintained implementation of Hotspot is now part of [scviva-tools](https://docs.scviva-tools.org/), the spatial companion package of scvi-tools, as `scviva.tools.harreman.hotspot` (`pip install scviva-tools`).
+> It computes local autocorrelation, pairwise local correlation and module scores with vectorized matrix multiplications (with optional GPU acceleration), making it substantially faster on large datasets.
+> See the [Harreman pipeline tutorial](https://docs.scviva-tools.org/en/latest/tutorials/Visium_colon_Harreman_pipeline.html) for an end-to-end example, including [computing and visualizing module scores](https://docs.scviva-tools.org/en/latest/tutorials/Visium_colon_Harreman_pipeline.html#step-5-compute-and-visualize-module-scores).
+
 Hotspot is a tool for identifying informative genes (and gene modules) in a single-cell dataset.
 
 Importantly 'informative' is decided based on how well a gene's variation agrees with some cell metric - some similarity mapping between cells.
@@ -18,6 +23,7 @@ The choice of metric allows you to evaluate different types of gene modules:
 - [Spatial Data (Mouse Cerebellum)](https://hotspot.readthedocs.io/en/latest/Spatial_Tutorial.html)
 - [Lineage Data (Mouse Embryogenesis)](https://hotspot.readthedocs.io/en/latest/Lineage_Tutorial.html)
 - [Human CD4 T cells](https://hotspot.readthedocs.io/en/latest/CD4_Tutorial.html)
+- [Hotspot in scviva-tools: Harreman pipeline on Visium mouse colon](https://docs.scviva-tools.org/en/latest/tutorials/Visium_colon_Harreman_pipeline.html)
 
 **Other Links**
 
